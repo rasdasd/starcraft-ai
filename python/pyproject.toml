@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bwbot"
+version = "0.1.0"
+description = "Brood War bot framework: 64-bit Python brain talking to a BWAPI shim over FlatBuffers/TCP"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "flatbuffers>=24.3",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+# ML backends are opt-in; the core package has no dependency on any of them.
+torch = ["torch>=2.2"]
+onnx = ["onnxruntime>=1.17", "onnx>=1.15"]
+tensorrt = ["tensorrt>=10.0"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+bwbot = "bwbot.run:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bwbot*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["bwbot/generated"]

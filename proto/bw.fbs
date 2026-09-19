@@ -1,0 +1,433 @@
+// Wire protocol between the C++ BWAPI shim (game side, 32-bit) and the bot process
+// (Python or anything else, 64-bit). Transport: TCP, each message is a little-endian
+// uint32 byte length followed by a FlatBuffer whose root type is Envelope.
+//
+// Lockstep per game frame (subject to ClientConfig.frame_skip):
+//   shim -> bot : Frame
+//   bot  -> shim: Commands
+// Static data is sent once per match in GameStart; GameEnd closes the match.
+//
+// All integer ids/enums mirror BWAPI 4.4.0 numeric values (UnitTypes::Enum,
+// Orders::Enum, UnitCommandTypes::Enum, ...) so the bot can reuse BWAPI tables
+// verbatim. Unit ids are BWAPI Unit::getID() (stable for the life of a unit).
+// A value of -1 means "none" for any id field.
+
+namespace bw;
+
+// ---------------------------------------------------------------------------
+// Handshake
+// ---------------------------------------------------------------------------
+
+table Hello {
+  protocol_version:int;      // bumped on incompatible schema changes
+  shim_version:string;
+  backend:string;            // "bwapi-4.4.0" or "openbw"
+  client_version:int;        // BWAPI GameData.client_version
+  revision:int;              // BWAPI revision
+}
+
+table ClientConfig {
+  frame_skip:int = 1;        // bot is consulted every N game frames (>= 1)
+  include_bullets:bool = true;
+  include_tiles:bool = true; // per-frame visibility/explored/creep byte map
+  include_players:bool = true;
+  local_speed:int = -1;      // -1 leaves game speed untouched; 0 = fastest
+  gui:bool = true;           // Game::setGUI (OpenBW: disabling skips rendering)
+  complete_map_information:bool = false; // Flag::CompleteMapInformation (cheating; for training)
+  user_input:bool = true;    // Flag::UserInput (lets a human click / type in the window)
+}
+
+// ---------------------------------------------------------------------------
+// Static per-match data
+// ---------------------------------------------------------------------------
+
+struct Pos { x:int; y:int; }
+
+table UnitTypeInfo {
+  id:int;
+  name:string;
+  race:int;
+  mineral_price:int;
+  gas_price:int;
+  build_time:int;
+  supply_required:int;
+  supply_provided:int;
+  max_hit_points:int;
+  max_shields:int;
+  max_energy:int;
+  armor:int;
+  ground_weapon:int;         // WeaponTypes::Enum
+  air_weapon:int;
+  max_ground_hits:int;
+  max_air_hits:int;
+  sight_range:int;
+  seek_range:int;
+  top_speed:float;
+  acceleration:int;
+  tile_width:int;
+  tile_height:int;
+  dimension_left:int;
+  dimension_up:int;
+  dimension_right:int;
+  dimension_down:int;
+  size:int;                  // UnitSizeTypes::Enum
+  what_builds:int;           // UnitTypes::Enum of producer
+  what_builds_count:int;
+  required_units:[int];      // UnitTypes::Enum
+  required_tech:int;         // TechTypes::Enum
+  space_required:int;
+  space_provided:int;
+  flags:uint;                // UnitTypeFlag bits
+}
+
+enum UnitTypeFlag : uint (bit_flags) {
+  Building, Worker, Flyer, Organic, Mechanical, Robotic, Detector, ResourceContainer,
+  ResourceDepot, Refinery, Addon, FlyingBuilding, Spell, Invincible, Burrowable,
+  Cloakable, Hero, Powerup, Beacon, Critter, Neutral, CanProduce, CanAttack, CanMove,
+  RegeneratesHP, IsMineralField, IsSpecialBuilding, ProducesLarva, RequiresPsi,
+  RequiresCreep, TwoUnitsInOneEgg
+}
+
+table WeaponTypeInfo {
+  id:int;
+  name:string;
+  tech:int;
+  what_uses:int;
+  damage_amount:int;
+  damage_bonus:int;
+  damage_cooldown:int;
+  damage_factor:int;
+  upgrade_type:int;
+  damage_type:int;
+  explosion_type:int;
+  min_range:int;
+  max_range:int;
+  inner_splash_radius:int;
+  median_splash_radius:int;
+  outer_splash_radius:int;
+  targets_air:bool;
+  targets_ground:bool;
+}
+
+table UpgradeTypeInfo {
+  id:int;
+  name:string;
+  race:int;
+  mineral_price:int;       // base
+  mineral_price_factor:int;
+  gas_price:int;
+  gas_price_factor:int;
+  upgrade_time:int;
+  upgrade_time_factor:int;
+  max_repeats:int;
+  what_upgrades:int;       // UnitTypes::Enum
+}
+
+table TechTypeInfo {
+  id:int;
+  name:string;
+  race:int;
+  mineral_price:int;
+  gas_price:int;
+  research_time:int;
+  energy_cost:int;
+  what_researches:int;     // UnitTypes::Enum
+  weapon:int;              // WeaponTypes::Enum
+  targets_unit:bool;
+  targets_position:bool;
+}
+
+table PlayerInfo {
+  id:int;
+  name:string;
+  race:int;
+  type:int;                // PlayerTypes::Enum
+  force:int;
+  is_self:bool;
+  is_enemy:bool;
+  is_ally:bool;
+  is_neutral:bool;
+  is_observer:bool;
+  start_location:Pos;      // tile position, may be (-1,-1)
+  color:int;
+}
+
+table GameStart {
+  map_name:string;
+  map_file_name:string;
+  map_path_name:string;
+  map_hash:string;
+  map_width:int;           // build tiles (32px)
+  map_height:int;
+  // Static tile maps, row-major, size map_width*map_height (build tiles) unless noted.
+  ground_height:[ubyte];   // 0..5
+  buildable:[ubyte];       // 0/1
+  // Walkability at walk-tile resolution (8px): (map_width*4) * (map_height*4)
+  walkable:[ubyte];
+  region_id:[ushort];      // BWAPI region id per build tile (0 = none)
+  start_locations:[Pos];   // tile positions
+  players:[PlayerInfo];
+  self_id:int;
+  enemy_id:int;            // first enemy, -1 if none
+  neutral_id:int;
+  game_type:int;
+  latency_frames:int;
+  random_seed:uint;
+  is_replay:bool;
+  unit_types:[UnitTypeInfo];
+  weapon_types:[WeaponTypeInfo];
+  upgrade_types:[UpgradeTypeInfo];
+  tech_types:[TechTypeInfo];
+  frame_skip:int;          // effective value after ClientConfig
+}
+
+// ---------------------------------------------------------------------------
+// Per-frame data
+// ---------------------------------------------------------------------------
+
+// Bit positions for UnitState.flags. Python: (flags >> UnitFlag.X) & 1, or use the
+// bit_flags value directly with `flags & UnitFlag.X`.
+enum UnitFlag : uint (bit_flags) {
+  Exists, Completed, Idle, Moving, Attacking, AttackFrame, StartingAttack, Gathering,
+  BeingGathered, Constructing, Training, Morphing, Burrowed, Cloaked, Detected,
+  Lifted, Sieged, Accelerating, Braking, Blind, Hallucination, Interruptible,
+  Invincible, Parasited, Selected, Stuck, UnderStorm, UnderDarkSwarm, UnderDWeb,
+  Powered, HasNuke, RecentlyAttacked
+}
+
+// Fixed-layout, all 4-byte fields (no padding) so the whole vector can be viewed as a
+// numpy structured array without copying. KEEP FIELD ORDER IN SYNC with
+// python/bwbot/observation.py::UNIT_DTYPE.
+struct UnitState {
+  id:int;
+  type:int;
+  player:int;
+  x:int;                   // pixel position (center)
+  y:int;
+  hit_points:int;
+  shields:int;
+  energy:int;
+  resources:int;
+  resource_group:int;
+  flags:uint;              // UnitFlag bits
+  visible_mask:uint;       // bit p set if visible to player p (0..8)
+  order:int;               // Orders::Enum
+  order_target:int;        // unit id
+  order_target_x:int;
+  order_target_y:int;
+  secondary_order:int;
+  target:int;              // unit id
+  target_x:int;
+  target_y:int;
+  build_type:int;          // UnitTypes::Enum
+  build_unit:int;          // unit id
+  remaining_build_time:int;
+  remaining_train_time:int;
+  train_queue_count:int;
+  train_queue_0:int;
+  train_queue_1:int;
+  train_queue_2:int;
+  train_queue_3:int;
+  train_queue_4:int;
+  tech:int;                // TechTypes::Enum being researched
+  upgrade:int;             // UpgradeTypes::Enum being upgraded
+  remaining_research_time:int;
+  remaining_upgrade_time:int;
+  ground_weapon_cooldown:int;
+  air_weapon_cooldown:int;
+  spell_cooldown:int;
+  angle:float;             // radians
+  velocity_x:float;
+  velocity_y:float;
+  kill_count:int;
+  acid_spore_count:int;
+  interceptor_count:int;
+  scarab_count:int;
+  spider_mine_count:int;
+  defense_matrix_points:int;
+  defense_matrix_timer:int;
+  ensnare_timer:int;
+  irradiate_timer:int;
+  lockdown_timer:int;
+  maelstrom_timer:int;
+  order_timer:int;
+  plague_timer:int;
+  remove_timer:int;
+  stasis_timer:int;
+  stim_timer:int;
+  addon:int;               // unit id
+  transport:int;           // unit id
+  carrier:int;             // unit id
+  hatchery:int;            // unit id
+  nydus_exit:int;          // unit id
+  power_up:int;            // unit id
+  rally_x:int;
+  rally_y:int;
+  rally_unit:int;          // unit id
+  carry_resource_type:int; // 0 none, 1 gas, 2 minerals
+  last_attacker_player:int;
+  last_hit_points:int;
+  replay_id:int;
+}
+
+struct BulletState {
+  id:int;
+  type:int;                // BulletTypes::Enum
+  player:int;
+  source:int;              // unit id
+  target:int;              // unit id
+  x:int;
+  y:int;
+  target_x:int;
+  target_y:int;
+  remove_timer:int;
+  angle:float;
+  velocity_x:float;
+  velocity_y:float;
+  exists_visible:int;      // bit0 exists, bit1 visible to self
+}
+
+table PlayerState {
+  id:int;
+  minerals:int;
+  gas:int;
+  gathered_minerals:int;
+  gathered_gas:int;
+  supply_used:int;         // BWAPI units (2 per "displayed" supply); race of player
+  supply_total:int;
+  supply_used_by_race:[int];  // 3 entries (Zerg, Terran, Protoss)
+  supply_total_by_race:[int];
+  is_victorious:bool;
+  is_defeated:bool;
+  left_game:bool;
+  // Vectors indexed by UnitTypes::Enum (length UnitTypes::Enum::MAX). Only populated for self.
+  all_unit_count:[int];
+  completed_unit_count:[int];
+  dead_unit_count:[int];
+  killed_unit_count:[int];
+  upgrade_level:[int];     // indexed by UpgradeTypes::Enum
+  has_researched:[ubyte];  // indexed by TechTypes::Enum
+  is_researching:[ubyte];
+  is_upgrading:[ubyte];
+  unit_score:int;
+  kill_score:int;
+  building_score:int;
+  razing_score:int;
+  custom_score:int;
+}
+
+table Event {
+  type:int;                // EventType::Enum
+  unit:int;                // unit id for Unit* events, else -1
+  player:int;              // PlayerLeft / ReceiveText
+  is_winner:bool;          // MatchEnd
+  text:string;             // SendText / ReceiveText / SaveGame
+  position:Pos;            // NukeDetect (pixels)
+}
+
+// Bit layout for Frame.tiles bytes (one per build tile).
+enum TileFlag : ubyte (bit_flags) { Visible, Explored, Creep }
+
+table Frame {
+  frame_count:int;
+  elapsed_time:int;        // seconds
+  fps:int;
+  average_fps:float;
+  latency_frames:int;
+  remaining_latency_frames:int;
+  is_paused:bool;
+  countdown_timer:int;
+  self_id:int;
+  players:[PlayerState];   // self + all non-neutral participating players
+  units:[UnitState];       // Broodwar->getAllUnits() (accessible units, incl. neutral)
+  bullets:[BulletState];
+  events:[Event];          // events since the last Frame the bot received
+  tiles:[ubyte];           // map_width*map_height TileFlag bytes, omitted if disabled
+  nuke_dots:[Pos];
+  // shim-side timing, for profiling the pipeline (microseconds)
+  serialize_us:int;
+  last_roundtrip_us:int;   // send previous Frame -> received Commands
+}
+
+table GameEnd {
+  frame_count:int;
+  is_winner:bool;
+  self_id:int;
+  players:[PlayerInfo];    // final victorious/defeated state is in PlayerState of last Frame
+}
+
+// ---------------------------------------------------------------------------
+// Bot -> shim
+// ---------------------------------------------------------------------------
+
+table UnitCommand {
+  unit:int;                // unit id
+  type:int;                // UnitCommandTypes::Enum
+  target:int = -1;         // unit id, for *_Unit commands
+  x:int;                   // pixel position (or tile position for Build / Land / Place_COP)
+  y:int;
+  extra:int;               // UnitType / TechType / UpgradeType / slot, per BWAPI semantics
+  queued:bool = false;     // shift-queue
+}
+
+enum GameCommandType : int {
+  None = 0,
+  SetLocalSpeed,           // value = ms per frame; 0 = fastest, -1 = default
+  SetFrameSkip,            // value = render every N frames (BWAPI GUI frame skip)
+  SetGUI,                  // value = 0/1
+  SendText,                // text
+  Printf,                  // text (local screen only)
+  LeaveGame,
+  RestartGame,
+  PauseGame,
+  ResumeGame,
+  EnableFlag,              // value = Flag::Enum
+  SetLatCom,               // value = 0/1
+  SetCommandOptimizationLevel, // value 0..4
+  SetRevealAll,            // value 0/1 (cheat; replays / training)
+  SetVision,               // value = player id, x = 0/1
+  SetAlliance,             // value = player id, x = allied 0/1, y = allied victory 0/1
+  PingMinimap,             // x,y pixels
+  SetScreenPosition        // x,y pixels
+}
+
+table GameCommand {
+  type:GameCommandType;
+  value:int;
+  x:int;
+  y:int;
+  text:string;
+}
+
+enum DrawShape : ubyte { Text = 0, Line, Box, Circle, Ellipse, Dot, Triangle }
+
+table DrawCommand {
+  shape:DrawShape;
+  ctype:int = 2;           // CoordinateType::Enum (1 screen, 2 map, 3 mouse)
+  x1:int; y1:int;          // text/dot/circle/ellipse origin, line start, box left/top, tri A
+  x2:int; y2:int;          // line end, box right/bottom, tri B
+  x3:int; y3:int;          // tri C; ellipse (xrad, yrad)
+  radius:int;
+  color:int = 111;         // BWAPI palette index (Colors::White = 255 etc.). 111 = green
+  is_solid:bool;
+  text:string;
+  text_size:int = 1;       // Text::Size::Enum (0 small, 1 default, 2 large, 3 huge)
+}
+
+table Commands {
+  frame_count:int;         // echo of Frame.frame_count this responds to
+  unit_commands:[UnitCommand];
+  game_commands:[GameCommand];
+  draws:[DrawCommand];
+}
+
+// ---------------------------------------------------------------------------
+
+union Message { Hello, ClientConfig, GameStart, Frame, GameEnd, Commands }
+
+table Envelope {
+  msg:Message;
+}
+
+root_type Envelope;
+file_identifier "BWB1";
