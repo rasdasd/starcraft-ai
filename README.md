@@ -189,6 +189,10 @@ building `flatc`.
 - **Shim prints `Game table mapping not found`**: normal while StarCraft is not running yet; it retries.
 - **Bot connects but frame count stays 0**: single-player StarCraft is paused (window lost focus).
   The shim auto-resumes; click the game window if you disabled that.
+- **"Starcraft Tips" dialog on game start**: StarCraft stores *Show Tips at Startup* in the registry
+  (`HKCU\Software\Blizzard Entertainment\Starcraft`, `tip`). `setup_windows.ps1` and `run_native.ps1`
+  set it to 0 before every launch; if you start the game some other way, untick the box once or run
+  `reg add "HKCU\Software\Blizzard Entertainment\Starcraft" /v tip /t REG_DWORD /d 0 /f`.
 - **`bind failed 10048`**: another shim owns the port; `scripts\run_native.ps1 -Stop` or use `--port`.
 - **OpenBW build errors about `uint32_t`**: the fork predates GCC 13; the scripts add `-include cstdint`.
 - **Python from Windows can't reach WSL**: WSL2 localhost forwarding is on by default; check

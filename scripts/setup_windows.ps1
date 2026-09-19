@@ -124,6 +124,12 @@ if (-not $SkipGame) {
     Set-Content $ini -Value $c -NoNewline
     New-Item -ItemType Directory -Force -Path (Join-Path $GameDir 'maps\replays\bwbot') | Out-Null
     Write-Host "  wrote $ini"
+
+    Step 'disable "Show Tips at Startup" (registry; the dialog blocks the match)'
+    $reg = 'HKCU:\Software\Blizzard Entertainment\Starcraft'
+    if (-not (Test-Path $reg)) { New-Item $reg -Force | Out-Null }
+    Set-ItemProperty $reg -Name tip -Value 0 -Type DWord
+    Set-ItemProperty $reg -Name tipnum -Value 0 -Type DWord
 }
 
 # ---------------------------------------------------------------------------

@@ -59,6 +59,13 @@ $shimProc = Start-Process -FilePath $Shim -ArgumentList @('--port', $Port) -Work
 
 # --- 2. StarCraft + BWAPI via Injectory (windowed) --------------------------------
 if (-not $NoGame) {
+    # StarCraft 1.16.1 keeps "Show Tips at Startup" in the registry (tip=0x100 on a fresh
+    # install). The tips dialog pauses the match until dismissed, so turn it off every run.
+    $reg = 'HKCU:\Software\Blizzard Entertainment\Starcraft'
+    if (-not (Test-Path $reg)) { New-Item $reg -Force | Out-Null }
+    Set-ItemProperty $reg -Name tip -Value 0 -Type DWord
+    Set-ItemProperty $reg -Name tipnum -Value 0 -Type DWord
+
     Write-Host 'starting StarCraft 1.16.1 with BWAPI 4.4.0 injected'
     Start-Process -FilePath (Join-Path $Game 'injectory_x86.exe') `
         -ArgumentList @('--launch', 'StarCraft.exe', '--inject', 'bwapi-data\BWAPI.dll', 'wmode.dll') `
