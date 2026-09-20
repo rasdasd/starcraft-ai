@@ -65,6 +65,16 @@ scripts\run_native.ps1       # shim + StarCraft(BWAPI injected) + example bot, e
 scripts\run_native.ps1 -Stop # kill everything
 ```
 
+Day-to-day, use the root launcher instead; it works from a Windows shell *and* from WSL (via
+`powershell.exe` interop) and drives `run_native.ps1`:
+
+```
+python run.py                                   # example bot in a visible StarCraft window
+python run.py --bot mybots.zerg --speed 42 --map "maps/BroodWar/sscai/(4)Python.scx"
+python run.py --stop
+python run.py --help                            # all options
+```
+
 The game archive is David Churchill's `scbw_bwapi440.zip` (StarCraft 1.16.1 redistributed with
 Blizzard's permission for AI research; includes BWAPI 4.4.0, Injectory launcher, and the SSCAI,
 AIIDE, and COG map packs).
