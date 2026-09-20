@@ -396,7 +396,7 @@ class Observation:
     __slots__ = (
         "game", "frame", "frame_count", "elapsed_time", "fps", "average_fps", "latency_frames",
         "remaining_latency_frames", "is_paused", "self_id", "units", "bullets", "_players", "_events", "_tiles",
-        "nuke_dots", "serialize_us", "last_roundtrip_us", "_by_id",
+        "nuke_dots", "serialize_us", "last_roundtrip_us", "game_apm", "_by_id",
     )
 
     def __init__(self, game: GameInfo, frame: bw.Frame):
@@ -416,6 +416,7 @@ class Observation:
         self.nuke_dots: np.ndarray = _struct_vector(tab, 32, POS_DTYPE)
         self.serialize_us = frame.SerializeUs()
         self.last_roundtrip_us = frame.LastRoundtripUs()
+        self.game_apm = frame.GameApm()          # the game's own APM counter for our player
         self._players: Optional[dict[int, PlayerState]] = None
         self._events: Optional[list[Event]] = None
         self._tiles: Optional[np.ndarray] = None

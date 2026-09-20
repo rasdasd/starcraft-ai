@@ -528,6 +528,7 @@ void Serializer::buildFrame(fb::FlatBufferBuilder& fbb, const std::vector<Event>
   b.add_nuke_dots(nukesOff);
   b.add_serialize_us(serializeUs);
   b.add_last_roundtrip_us(lastRoundtripUs);
+  b.add_game_apm(g->getAPM());
   auto frame = b.Finish();
 
   auto env = bw::CreateEnvelope(fbb, bw::Message::Frame, frame.Union());

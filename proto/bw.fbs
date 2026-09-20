@@ -347,6 +347,7 @@ table Frame {
   // shim-side timing, for profiling the pipeline (microseconds)
   serialize_us:int;
   last_roundtrip_us:int;   // send previous Frame -> received Commands
+  game_apm:int;            // Broodwar->getAPM(): the game's own actions-per-minute for our player
 }
 
 table GameEnd {

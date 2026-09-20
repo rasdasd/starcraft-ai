@@ -1,6 +1,7 @@
 """Bot base class."""
 from __future__ import annotations
 
+from .apm import ApmMeter
 from .commands import Actions
 from .observation import GameInfo, Observation
 from .protocol import ClientConfig
@@ -14,10 +15,13 @@ class Bot:
     Attributes:
         config: `ClientConfig` sent to the shim at the start of every match (frame_skip, speed, ...).
         game:   `GameInfo` for the current match (set before `on_start`).
+        apm:    `ApmMeter` counting the unit commands this bot issued (maintained by the runner;
+                `apm.current` = trailing game-minute, `apm.average` = whole game).
     """
 
     config: ClientConfig = ClientConfig()
     game: GameInfo
+    apm: ApmMeter = ApmMeter()
 
     def on_start(self, game: GameInfo) -> None:
         """Called once per match after GameStart is received."""

@@ -49,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--connect-timeout", type=float, default=None)
     ap.add_argument("--max-frames", type=int, default=None,
                     help="leave the game after N frames (OpenBW has no AI opponent, so games never end)")
+    ap.add_argument("--no-apm-hud", action="store_true", help="don't draw the runner's APM line on screen")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -71,7 +72,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg.complete_map_information = True
 
     run(bot, host=args.host, port=args.port, games=args.games, connect_timeout=args.connect_timeout,
-        max_frames=args.max_frames)
+        max_frames=args.max_frames, apm_hud=None if args.no_apm_hud else (10, 300))
     return 0
 
 

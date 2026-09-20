@@ -5,6 +5,7 @@ import logging
 import time
 from typing import Optional
 
+from .apm import ApmMeter
 from .bot import Bot
 from .client import ShimClient
 from .commands import Actions
@@ -14,20 +15,23 @@ log = logging.getLogger("bwbot.runner")
 
 
 def run(bot: Bot, host: str = "127.0.0.1", port: int = 8765, games: Optional[int] = None,
-        connect_timeout: Optional[float] = None, reconnect: bool = True, max_frames: Optional[int] = None) -> None:
+        connect_timeout: Optional[float] = None, reconnect: bool = True, max_frames: Optional[int] = None,
+        apm_hud: Optional[tuple[int, int]] = (10, 300)) -> None:
     """Play games until `games` matches are done (None = forever) or the shim goes away.
 
     Reconnects to the shim if it disappears (e.g. StarCraft restarted) when `reconnect` is True.
     `max_frames` makes the bot leave the game after that many frames (useful on OpenBW, which has
     no built-in opponent so games never end by themselves).
+    `apm_hud` is the screen position of the runner's APM line (None = don't draw it).
     """
+    bot.apm = ApmMeter()
     played = 0
     while games is None or played < games:
         client = ShimClient(host, port)
         try:
             client.connect(timeout=connect_timeout)
             while games is None or played < games:
-                _play_one(bot, client, max_frames)
+                _play_one(bot, client, max_frames, apm_hud)
                 played += 1
         except Disconnected:
             log.warning("shim disconnected")
@@ -41,9 +45,12 @@ def run(bot: Bot, host: str = "127.0.0.1", port: int = 8765, games: Optional[int
             client.close()
 
 
-def _play_one(bot: Bot, client: ShimClient, max_frames: Optional[int] = None) -> None:
+def _play_one(bot: Bot, client: ShimClient, max_frames: Optional[int] = None,
+              apm_hud: Optional[tuple[int, int]] = None) -> None:
     game = client.wait_for_game(bot.config)
     bot.game = game
+    apm = bot.apm
+    apm.reset()
     bot.on_start(game)
 
     act = Actions()
@@ -70,17 +77,25 @@ def _play_one(bot: Bot, client: ShimClient, max_frames: Optional[int] = None) ->
         dt = time.perf_counter() - t1
         think_total += dt
         think_max = max(think_max, dt)
+        apm.record(obs.frame_count, len(act.unit_cmds))
+        if apm_hud is not None:
+            act.draw_text_screen(apm_hud[0], apm_hud[1],
+                                 f"APM {apm.current:.0f}  (avg {apm.average:.0f}, game {obs.game_apm}, "
+                                 f"{apm.last} cmds this frame)")
         client.send_commands(act.to_bytes())
         frames += 1
         if frames % 500 == 0:
             wall = time.perf_counter() - t0
-            log.info("frame %d%s | %d decisions | think avg %.2fms max %.2fms | shim rtt %.2fms ser %.2fms | %.1f dec/s",
+            log.info("frame %d%s | %d decisions | think avg %.2fms max %.2fms | shim rtt %.2fms ser %.2fms | "
+                     "%.1f dec/s | APM %.0f (avg %.0f, game %d)",
                      obs.frame_count, " (paused)" if obs.is_paused else "", frames, 1000 * think_total / frames,
-                     1000 * think_max, obs.last_roundtrip_us / 1000, obs.serialize_us / 1000, frames / max(wall, 1e-6))
+                     1000 * think_max, obs.last_roundtrip_us / 1000, obs.serialize_us / 1000, frames / max(wall, 1e-6),
+                     apm.current, apm.average, obs.game_apm)
             think_max = 0.0
 
     won = client.last_result
-    log.info("game over: %s after %d frames (%d decisions)", "WIN" if won else "LOSS", client.last_end_frame, frames)
+    log.info("game over: %s after %d frames (%d decisions, %d actions, avg APM %.0f)", "WIN" if won else "LOSS",
+             client.last_end_frame, frames, apm.total, apm.average)
     try:
         bot.on_end(won)
     except Exception:

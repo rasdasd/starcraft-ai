@@ -18,6 +18,7 @@ Typical use::
 
 __version__ = "0.1.0"
 
+from .apm import ApmMeter  # noqa: E402
 from .bot import Bot, ClientConfig  # noqa: E402
 from .commands import Actions  # noqa: E402
 from .enums import (  # noqa: E402
@@ -36,6 +37,7 @@ from .runner import run  # noqa: E402
 
 __all__ = [
     "Bot",
+    "ApmMeter",
     "ClientConfig",
     "Actions",
     "GameInfo",

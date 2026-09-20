@@ -151,6 +151,10 @@ run(MyBot())                           # or: python -m bwbot.run mymodule:MyBot
   `obs.my_units_of_type(t)`, `obs.idle(units)`, `obs.unit(id)`, `obs.tiles / visible / explored`.
 - `obs.me` (`PlayerState`): minerals, gas, supply, per-type unit counts, upgrade levels, research.
 - `obs.events`: BWAPI events since the last decision (`UnitCreate`, `UnitDestroy`, `ReceiveText`, ...).
+- `bot.apm` (`ApmMeter`): actions per *game* minute that the bot issued - `current` (trailing minute),
+  `average` (whole game), `total`, `last` (this decision). Unit commands count; game commands and
+  drawing don't. The runner draws it on screen (`--no-apm-hud` to hide) and logs it; `obs.game_apm`
+  is the game's own counter for cross-checking. An APM budget will later be enforced on this meter.
 - `act.*` mirrors `BWAPI::UnitCommandType` (`move`, `attack`, `build`, `train`, `research`, `use_tech_pos`,
   ...) plus game commands (`set_local_speed`, `send_text`, `leave_game`, ...) and debug drawing.
 - `bwbot.enums` mirrors BWAPI's numeric enums (`UnitType`, `Order`, `TechType`, `UpgradeType`,
