@@ -8,6 +8,7 @@
 .EXAMPLE
   scripts\run_native.ps1                                  # example bot, default settings
   scripts\run_native.ps1 -Bot examples.basic_terran -FrameSkip 1 -Speed 42
+  scripts\run_native.ps1 -Games 5                         # play 5 games, then shut everything down
   scripts\run_native.ps1 -NoBot                           # only StarCraft + shim; run your bot by hand
   scripts\run_native.ps1 -Stop                            # kill StarCraft / shim / bot
 #>
@@ -20,6 +21,7 @@ param(
     [string]$Map = '',           # override bwapi.ini map (relative to game/, e.g. maps/BroodWar/sscai/(4)Python.scx)
     [string]$Race = '',          # Terran | Protoss | Zerg | Random
     [string]$EnemyRace = '',
+    [int]$Games = 0,             # play exactly N games, then shut everything down (0 = forever)
     [switch]$NoBot,
     [switch]$NoGame,
     [switch]$Stop,
@@ -78,8 +80,17 @@ if (-not $NoBot) {
     $args = @('-m', 'bwbot.run', $Bot, '--port', $Port)
     if ($FrameSkip -ge 1) { $args += @('--frame-skip', $FrameSkip) }
     if ($Speed -ge -1)    { $args += @('--speed', $Speed) }
+    if ($Games -gt 0)     { $args += @('--games', $Games) }
     Write-Host "starting bot: python $($args -join ' ')"
     $botProc = Start-Process -FilePath $Py -ArgumentList $args -WorkingDirectory (Join-Path $Root 'python') -PassThru
+    if ($Games -gt 0) {
+        # Bounded session: wait for the bot to finish its N games, then tear down StarCraft + shim,
+        # otherwise the game auto-restarts and sits there waiting for a bot that never comes.
+        Write-Host "playing $Games game(s); everything shuts down when the bot exits (Ctrl+C to abort)"
+        try { $botProc.WaitForExit() } finally { Stop-All }
+        Write-Host "done: $Games game(s) played, exit code $($botProc.ExitCode)"
+        return
+    }
     if ($Wait) { $botProc.WaitForExit() }
 }
 

@@ -3,6 +3,7 @@
 
     python run.py                          # example bot, windowed StarCraft, default settings
     python run.py --bot mybots.zerg --speed 42
+    python run.py --games 3                # play exactly 3 games, then shut everything down
     python run.py --stop                   # tear everything down
 
 The visible game (StarCraft 1.16.1 + BWAPI) only exists on Windows, so this script always drives
@@ -35,6 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--map", help="map relative to game/, e.g. maps/BroodWar/sscai/(4)Python.scx")
     p.add_argument("--race", choices=["Terran", "Protoss", "Zerg", "Random"], help="bot race")
     p.add_argument("--enemy-race", choices=["Terran", "Protoss", "Zerg", "Random"], help="built-in AI race")
+    p.add_argument("--games", type=int, help="play exactly N games, then shut down StarCraft/shim/bot (default: forever)")
     p.add_argument("--no-bot", action="store_true", help="start only StarCraft + shim; run the bot yourself")
     p.add_argument("--no-game", action="store_true", help="start only shim + bot (StarCraft already running)")
     p.add_argument("--wait", action="store_true", help="block until the bot process exits")
@@ -57,6 +59,10 @@ def to_ps_args(a: argparse.Namespace) -> list[str]:
         args += ["-Race", a.race]
     if a.enemy_race:
         args += ["-EnemyRace", a.enemy_race]
+    if a.games is not None:
+        if a.games < 1:
+            sys.exit("--games must be >= 1")
+        args += ["-Games", str(a.games)]
     for flag, name in ((a.no_bot, "-NoBot"), (a.no_game, "-NoGame"), (a.wait, "-Wait")):
         if flag:
             args.append(name)

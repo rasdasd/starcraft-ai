@@ -71,6 +71,7 @@ Day-to-day, use the root launcher instead; it works from a Windows shell *and* f
 ```
 python run.py                                   # example bot in a visible StarCraft window
 python run.py --bot mybots.zerg --speed 42 --map "maps/BroodWar/sscai/(4)Python.scx"
+python run.py --bot mybot --games 5              # exactly 5 games, then StarCraft/shim/bot shut down
 python run.py --stop
 python run.py --help                            # all options
 ```
