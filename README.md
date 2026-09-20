@@ -43,7 +43,7 @@ proto/bw.fbs          wire protocol (FlatBuffers schema) - the single source of 
 shim/                 C++ shim: CMakeLists.txt, src/, third_party/bwapi (vendored 4.4.0 client libs)
   build/              Win32 build: shim.exe, shim_module.dll
   build-openbw/       Linux build (from WSL): shim_module.so
-python/               bwbot package + examples/, .venv/
+python/               bwbot package (framework) + mybot/ (your bot, start here) + examples/, .venv/
 scripts/              setup_windows.ps1, build_shim.ps1, run_native.ps1, gen_proto.ps1|sh, gen_enums.py,
                       setup_wsl.sh, run_openbw.sh
 wsl/                  (git-ignored) openbw/ + bwapi/ checkouts and build, game/ dir for BWAPILauncher
@@ -105,6 +105,21 @@ OpenBW has no built-in computer opponent: the enemy in single-player just sits i
 `frame_skip=2` (≈75x realtime), bounded by Python round trips.
 
 ## Writing a bot
+
+Start from `python/mybot/` — a runnable starter bot (`python run.py --bot mybot`) split into three
+layers so the decision logic can later be swapped for a learned model without touching the rest:
+
+| file | role | ML analogue |
+|---|---|---|
+| `mybot/state.py` | `perceive(obs) -> State`: counts, supply, army/worker/enemy arrays, cross-frame `Memory`; `State.as_features()` | feature extraction |
+| `mybot/policy.py` | `Policy.decide(State) -> [Train, Build, Attack, Rally]`; `ScriptedPolicy` is the deterministic Terran opener + rules | the model |
+| `mybot/bot.py` | `MyBot(Bot)`: runs perceive -> decide -> execute each decision, reserves minerals for pending builds, keeps idle workers mining, draws a HUD | environment glue |
+| `mybot/macro.py` | placement (spiral search on buildable/explored/same-height tiles) and builder selection | - |
+
+To change behaviour edit `ScriptedPolicy.BUILD_ORDER` and its rules; to go learned, write another
+class with the same `decide`/`on_game_end` methods and pass it in: `MyBot(policy=LearnedPolicy(model))`.
+
+The minimal version of the same thing, without the layers:
 
 ```python
 from bwbot import Bot, ClientConfig, UnitType, UnitFlag, run
