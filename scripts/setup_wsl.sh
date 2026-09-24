@@ -26,7 +26,7 @@ step() { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 step "apt packages"
 SUDO=""
 if [[ $EUID -ne 0 ]]; then SUDO="sudo"; fi
-PKGS=(build-essential cmake ninja-build git pkg-config python3 python3-venv python3-pip ca-certificates)
+PKGS=(build-essential cmake ninja-build git pkg-config python3 python3-venv python3-pip ca-certificates curl unzip)
 if [[ "$UI" == "1" ]]; then PKGS+=(libsdl2-dev libsdl2-mixer-dev libsdl2-image-dev); fi
 export DEBIAN_FRONTEND=noninteractive
 $SUDO apt-get -qq update
@@ -81,8 +81,26 @@ if [[ -n "$FLATC" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-step "OpenBW game directory ($WSL/game)"
+step "game archive ($ROOT/game)"
 GAME_SRC="$ROOT/game"
+if ! find "$GAME_SRC" -maxdepth 1 -iname 'stardat.mpq' 2>/dev/null | grep -q .; then
+  # Native Linux (no Windows setup): same archive setup_windows.ps1 uses (StarCraft 1.16.1 +
+  # BWAPI 4.4.0 + map packs, redistributed with Blizzard's permission for AI research).
+  ZIP="$WSL/scbw_bwapi440.zip"
+  [[ -f "$ZIP" ]] || curl -fL --retry 3 -o "$ZIP" https://davechurchill.ca/starcraft/files/startcraft/scbw_bwapi440.zip
+  mkdir -p "$GAME_SRC"
+  unzip -q -o "$ZIP" -d "$GAME_SRC"
+  # the archive may contain a single top-level folder
+  inner="$(find "$GAME_SRC" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+  if [[ -n "$inner" ]] && ! find "$GAME_SRC" -maxdepth 1 -iname 'stardat.mpq' | grep -q . \
+     && find "$inner" -maxdepth 1 -iname 'stardat.mpq' | grep -q .; then
+    shopt -s dotglob; mv "$inner"/* "$GAME_SRC"/; rmdir "$inner"; shopt -u dotglob
+  fi
+else
+  echo "  (exists) $GAME_SRC"
+fi
+
+step "OpenBW game directory ($WSL/game)"
 GAME="$WSL/game"
 mkdir -p "$GAME/bwapi-data/AI" "$GAME/bwapi-data/read" "$GAME/bwapi-data/write" "$GAME/maps/replays"
 for f in STARDAT.MPQ BROODAT.MPQ patch_rt.mpq; do
@@ -142,6 +160,13 @@ sound = OFF
 screenshots = gif
 drop_players = ON
 EOF
+
+step "Linux brain venv"
+if [[ -n "${SUDO_USER:-}" ]]; then
+  sudo -u "$SUDO_USER" bash "$ROOT/scripts/setup_brain.sh"
+else
+  bash "$ROOT/scripts/setup_brain.sh"
+fi
 
 step "done"
 cat <<EOF
