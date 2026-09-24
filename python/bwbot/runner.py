@@ -33,7 +33,7 @@ def run(bot: Bot, host: str = "127.0.0.1", port: int = 8765, games: Optional[int
             while games is None or played < games:
                 _play_one(bot, client, max_frames, apm_hud)
                 played += 1
-        except Disconnected:
+        except (Disconnected, ConnectionError):
             log.warning("shim disconnected")
             if not reconnect:
                 return

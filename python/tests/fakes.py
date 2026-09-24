@@ -214,6 +214,7 @@ class FakeWorld:
     techs: set[int] = field(default_factory=set)
     events: list[Event] = field(default_factory=list)
     next_id: int = 1
+    tiles: Optional[np.ndarray] = None       # per-tile TileFlag bytes; None = everything visible
 
     def add(self, unit_type: int, x: int, y: int, player: int = 0, completed: bool = True, idle: bool = True,
             **kw) -> int:
@@ -307,7 +308,7 @@ class FakeWorld:
         obs._players = {g.self_id: me, g.enemy_id: enemy}
         obs._events = list(self.events)
         self.events.clear()
-        obs._tiles = np.full((g.map_height, g.map_width), 3, np.uint8)
+        obs._tiles = self.tiles.copy() if self.tiles is not None else np.full((g.map_height, g.map_width), 3, np.uint8)
         obs._by_id = None
         obs._placement_results = []
         return obs
