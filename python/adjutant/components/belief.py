@@ -217,6 +217,7 @@ class ScriptedBelief(Component):
         b.tech = seen_b | inferred
         b.inferred = inferred
         b.buildings = [(tr.type, tr.x, tr.y) for tr in self.tracks.values() if tr.building]
+        b.units = {uid: (tr.type, tr.x, tr.y, tr.frame) for uid, tr in self.tracks.items()}
         b.enemy_race = int(self.opponent.race) if int(self.opponent.race) != int(Race.Unknown) else b.enemy_race
         b.enemy_start = next(iter(self.candidates)) if len(self.candidates) == 1 else self.info.enemy_start
         self._army(b, frame, ut)

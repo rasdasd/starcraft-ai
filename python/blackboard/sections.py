@@ -99,6 +99,7 @@ class Belief:
     first_seen: dict[int, int] = field(default_factory=dict)
     bases: list[EnemyBase] = field(default_factory=list)
     buildings: list[tuple[int, int, int]] = field(default_factory=list)   # last-known (type, x, y)
+    units: dict[int, tuple[int, int, int, int]] = field(default_factory=dict)  # id -> last (type, x, y, frame)
     army_supply: float = 0.0
     army_pos: Optional[tuple[int, int]] = None
     army_seen_frame: int = -1
@@ -193,12 +194,18 @@ class Engagement:
     enemy_strength: float
     win_prob: float
     enemy_ids: list[int] = field(default_factory=list)
+    own_ids: list[int] = field(default_factory=list)
+    ratio: float = 1.0                      # own / enemy Lanchester strength
+    own_left: float = 1.0                   # expected surviving fraction of our units
+    contact: bool = False                   # the two groups are within weapon reach
 
 
 @dataclass
 class Engagements:
-    by_squad: dict[str, Engagement] = field(default_factory=dict)
+    by_squad: dict[str, Engagement] = field(default_factory=dict)   # own army clusters ("c0", ...)
     global_ratio: float = 1.0               # whole army vs estimated enemy army
+    global_win_prob: float = 0.5
+    fights: int = 0                         # fights logged this game
 
     def summary(self) -> str:
         return " ".join(f"{k}:{e.win_prob:.2f}" for k, e in self.by_squad.items()) or f"global {self.global_ratio:.2f}"
