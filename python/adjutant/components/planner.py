@@ -36,6 +36,7 @@ P_TECH = Priority.PRODUCTION + 4
 P_BUILDING = Priority.PRODUCTION + 2
 P_UPGRADE = Priority.PRODUCTION + 1
 P_ARMY = Priority.PRODUCTION
+P_ARMY_URGENT = Priority.PRODUCTION + 7
 
 
 @register("GreedyPlanner")
@@ -44,9 +45,14 @@ class GreedyPlanner(Component):
     reads = ("world", "meta", "belief", "strategy", "threats")
     writes = ("plan",)
 
-    def __init__(self, supply_lead: float = 1.0, max_supply: int = 200) -> None:
+    def __init__(self, supply_lead: float = 1.0, max_supply: int = 200, army_from_min: float = 3.0,
+                 army_per_min: float = 4.0, army_cap: float = 30.0, enemy_army_factor: float = 1.0) -> None:
         self.supply_lead = supply_lead      # supply buffer, in "decisions of full production" units
         self.max_supply = max_supply
+        self.army_from_min = army_from_min  # minimum army supply: army_per_min per minute after this
+        self.army_per_min = army_per_min
+        self.army_cap = army_cap
+        self.enemy_army_factor = enemy_army_factor   # ... and at least this x the known enemy army
 
     # ------------------------------------------------------------------ helpers
     def _queued(self, bb: Blackboard, t: int) -> int:
@@ -157,6 +163,13 @@ class GreedyPlanner(Component):
                     add("build", t, P_CHAIN, "prereq")
                 notes.append(f"prereq {bb.game.type_name(t)}")
 
+            # 4b. too little army for the game time / the enemy we know about: units before
+            # expansions and tech (and before their money is reserved)
+            need = self.min_army(bb)
+            if w.army_supply < need:
+                self._army(bb, tree, goal, add, reserve, worker, held, prio=P_ARMY_URGENT)
+                notes.append(f"army {w.army_supply}<{need:.0f}")
+
             # 5. expansions
             bases_now = self.have(bb, hall) if hall is not None else 1
             if hall is not None and goal.bases > bases_now:
@@ -239,7 +252,13 @@ class GreedyPlanner(Component):
         ps = obs.my_completed(parent)
         return bool(len(ps)) and bool((ps["addon"] < 0).any())
 
-    def _army(self, bb: Blackboard, tree: TechTree, goal, add, reserve, worker, held) -> None:
+    def min_army(self, bb: Blackboard) -> float:
+        minutes = bb.frame / (24 * 60)
+        by_time = min(self.army_cap, max(0.0, (minutes - self.army_from_min) * self.army_per_min))
+        return max(by_time, self.enemy_army_factor * bb.belief.army_supply)
+
+    def _army(self, bb: Blackboard, tree: TechTree, goal, add, reserve, worker, held,
+              prio: int = P_ARMY) -> None:
         w = bb.world
         minerals = w.minerals - reserve[0]
         gas = w.gas - reserve[1]
@@ -268,7 +287,8 @@ class GreedyPlanner(Component):
                 deficits[t] -= 1
                 counts[t] = counts.get(t, 0) + 1
         for t, n in counts.items():
-            add("train", t, P_ARMY, "goal", count=n)
+            m, g = tree.cost(t)
+            add("train", t, prio, "goal" if prio == P_ARMY else "min army", count=n, cost=(m * n, g * n))
 
     def owned_geysers(self, bb: Blackboard) -> int:
         total = 0

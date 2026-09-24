@@ -52,10 +52,10 @@ def test_rescout_leases_unit_and_times_out():
     sim.run(bot, 24 * 125)
     assert sc.unit_id == vid
     lease = bot.bb.leases.get(vid)
-    assert lease.owner == sc.slot and lease.priority == int(Priority.COMBAT)
+    assert lease.owner == sc.slot and lease.priority == int(Priority.COMBAT) + 1
     assert vid in bot.bb.scouting.scouts
     sim.run(bot, 24 * 40)                                # never arrives in the Sim -> timeout
-    assert sc.unit_id is None and bot.bb.leases.owner(vid) is None
+    assert sc.unit_id is None and bot.bb.leases.owner(vid) in (None, "micro")   # back to the army
 
 
 def test_periodic_scan_uses_comsat_energy():

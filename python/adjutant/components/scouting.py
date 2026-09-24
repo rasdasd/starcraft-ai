@@ -4,7 +4,8 @@
    watches the enemy main until threatened.
 2. Re-scouts: bases are ranked by value x staleness (known enemy bases > the enemy natural >
    other expansions near the enemy); one cheap unit (vulture, marine, ... or an SCV early) is
-   leased at COMBAT priority, so the army cannot pull it back, and sent to the best target. It
+   leased just above COMBAT priority (taken from the squad pool, never from the defense squad), so
+   the army cannot pull it back, and sent to the best target. It
    returns to the army when it arrives, is threatened, or times out.
 3. Comsat scans: before an attack when the target is stale, and periodically on the stalest
    enemy base while keeping `scan_reserve` energy for detection.
@@ -26,6 +27,7 @@ from .. import compat
 log = logging.getLogger("adjutant.scouting")
 
 RESCOUT_TYPES = (U.Terran_Vulture, U.Terran_Marine, U.Terran_Goliath, U.Terran_Wraith)
+RESCOUT_PRIORITY = int(Priority.COMBAT) + 1        # above the squad executor, below crisis
 ARRIVE = 6 * 32
 THREAT = 7 * 32
 
@@ -33,7 +35,7 @@ THREAT = 7 * 32
 @register("Scouting")
 class Scouting(Component):
     phase = Phase.ACT
-    reads = ("world", "belief", "strategy", "meta")
+    reads = ("world", "belief", "strategy", "meta", "squads")
     writes = ("scouting",)
     priority = Priority.SCOUT
     order = 10
@@ -151,7 +153,7 @@ class Scouting(Component):
         if u is None:
             return
         uid = int(u["id"])
-        if not bb.leases.lease(uid, self.slot, int(Priority.COMBAT), "rescout", bb.frame):
+        if not bb.leases.lease(uid, self.slot, RESCOUT_PRIORITY, "rescout", bb.frame):
             return
         self.unit_id, self.target, self.target_base, self.sent = uid, (tx, ty), bid, bb.frame
         bb.act.move(u, tx, ty)
@@ -164,12 +166,22 @@ class Scouting(Component):
             units = obs.my_completed(t)
             if len(units) == 0:
                 continue
-            free = [u for u in units if bb.leases.owner(int(u["id"])) in (None, self.slot)]
+            free = [u for u in units if self._takeable(bb, int(u["id"]))]
             if not free:
                 continue
             d = [(int(u["x"]) - tx) ** 2 + (int(u["y"]) - ty) ** 2 for u in free]
             return free[int(np.argmin(d))]
         return None
+
+    def _takeable(self, bb: Blackboard, uid: int) -> bool:
+        """Free, ours, or an idle-ish army unit held by the squad executor (not a defender)."""
+        lease = bb.leases.get(uid)
+        if lease is None or lease.owner == self.slot:
+            return True
+        if lease.purpose != "squad" or lease.priority >= RESCOUT_PRIORITY:
+            return False
+        d = bb.squads.get("defense")
+        return d is None or uid not in d.units
 
     def _release(self, bb: Blackboard, why: str) -> None:
         if self.unit_id is not None:
