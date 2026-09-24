@@ -25,7 +25,11 @@ ASSIGNED = "assigned"
 CONSTRUCTING = "constructing"
 
 REISSUE_FRAMES = 8
-TILE_TIMEOUT_FRAMES = 24 * 15
+TILE_TIMEOUT_FRAMES = 24 * 15      # at the site without construction starting
+TRAVEL_TIMEOUT_FRAMES = 24 * 60    # builder never reached the site
+ARRIVE_PX = 5 * 32
+WALK_TILES = 6                     # move (not Build) until this close to the site centre
+EXACT_RETRIES = 3                  # then search near the exact tile instead
 
 
 @dataclass
@@ -40,6 +44,8 @@ class BuildTask:
     query_id: Optional[int] = None
     near: Optional[tuple[int, int]] = None   # preferred tile (default: main)
     exact: bool = False                      # `near` is the exact top-left tile (skip the placer)
+    arrived_frame: int = 0
+    failures: int = 0
 
 
 class BuildingManager:
@@ -161,12 +167,33 @@ class BuildingManager:
             or int(w["order"]) == int(Order.ConstructingBuilding)
             or int(w["build_type"]) == task.unit_type))
         if w is not None and not constructing and s.frame - task.last_issue_frame >= REISSUE_FRAMES:
-            act.build(w, task.unit_type, task.tile[0], task.tile[1])
+            # BWAPI refuses Build on unexplored tiles: walk there first
+            if self._needs_walk(task, s, w):
+                ut = s.game.unit_types
+                act.move(w, task.tile[0] * 32 + int(ut["tile_width"][task.unit_type]) * 16,
+                         task.tile[1] * 32 + int(ut["tile_height"][task.unit_type]) * 16)
+            else:
+                act.build(w, task.unit_type, task.tile[0], task.tile[1])
             task.last_issue_frame = s.frame
 
-        if task.started_frame and s.frame - task.started_frame > TILE_TIMEOUT_FRAMES:
-            log.warning("f%d %s at %s timed out; retrying %s", s.frame, s.game.type_name(task.unit_type),
-                        task.tile, "the same tile" if task.exact else "another tile")
+        if w is not None and not task.arrived_frame:
+            ut = s.game.unit_types
+            cx = task.tile[0] * 32 + int(ut["tile_width"][task.unit_type]) * 16
+            cy = task.tile[1] * 32 + int(ut["tile_height"][task.unit_type]) * 16
+            if (int(w["x"]) - cx) ** 2 + (int(w["y"]) - cy) ** 2 <= ARRIVE_PX ** 2:
+                task.arrived_frame = s.frame
+        at_site = task.arrived_frame and s.frame - task.arrived_frame > TILE_TIMEOUT_FRAMES
+        travel = task.started_frame and s.frame - task.started_frame > TRAVEL_TIMEOUT_FRAMES
+        if at_site or travel:
+            task.failures += 1
+            if task.exact and task.failures >= EXACT_RETRIES:
+                task.exact = False                       # search near it from now on
+                how = "searching near it"
+            else:
+                how = "the same tile" if task.exact else "another tile"
+            wpos = f"({int(w['x']) // 32},{int(w['y']) // 32}) order {int(w['order'])}" if w is not None else "none"
+            log.warning("f%d %s at %s timed out (%s, builder %s); retrying %s", s.frame,
+                        s.game.type_name(task.unit_type), task.tile, "at site" if at_site else "travel", wpos, how)
             placer.release(s.game, task.unit_type, task.tile)
             if not task.exact:
                 placer.fail(task.tile)
@@ -174,7 +201,18 @@ class BuildingManager:
             task.query_id = None
             task.status = UNASSIGNED
             task.started_frame = s.frame
+            task.arrived_frame = 0
         return True
+
+    @staticmethod
+    def _needs_walk(task: BuildTask, s: State, w) -> bool:
+        """Walk to far sites and only then Build: BWAPI (OpenBW especially) refuses long-distance
+        or unexplored/unaffordable Build orders, and a refused order leaves the SCV mining."""
+        tx, ty = task.tile
+        ut = s.game.unit_types
+        cx = tx * 32 + int(ut["tile_width"][task.unit_type]) * 16
+        cy = ty * 32 + int(ut["tile_height"][task.unit_type]) * 16
+        return (int(w["x"]) - cx) ** 2 + (int(w["y"]) - cy) ** 2 > (WALK_TILES * 32) ** 2
 
     def _request_shim_tile(self, task: BuildTask, s: State, act: Actions) -> None:
         if task.query_id is not None or not hasattr(act, "get_build_location"):

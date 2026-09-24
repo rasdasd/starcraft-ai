@@ -402,6 +402,9 @@ class Sim:
                 u[key] = dur
                 kind = "upgrade" if c.type == C.Upgrade else "research"
                 self.pending.append((w.frame + dur, kind, c.extra, u["id"]))
+            elif c.type == C.Move and u["type"] in (int(U.Terran_SCV), int(U.Protoss_Probe), int(U.Zerg_Drone)):
+                u["x"], u["y"] = c.x, c.y          # instant builder travel
+                self.jobs.pop(u["id"], None)
             elif c.type == C.Gather:
                 tgt = w.get(c.target)
                 if tgt is None:

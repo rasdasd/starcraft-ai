@@ -208,7 +208,7 @@ class CommandBus:
         key = (owner, uid)
         if key not in self._drop_log and len(self._drop_log) < 200:
             self._drop_log.add(key)
-            log.debug("%s: command for #%d dropped (leased by %s)", owner, uid, self.leases.owner(uid))
+            log.info("%s: command for #%d dropped (leased by %s)", owner, uid, self.leases.owner(uid))
 
     def flush(self, act: Actions) -> None:
         cmds = act.unit_cmds
