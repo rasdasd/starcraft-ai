@@ -11,8 +11,10 @@ from typing import Optional
 
 import numpy as np
 
-from bwbot import GameInfo, Observation, UnitFlag
+from bwbot import GameInfo, Observation
 from bwbot.observation import UnitTypeFlag
+
+from .opponent import OpponentSnapshot
 
 
 @dataclass
@@ -21,7 +23,9 @@ class Memory:
 
     enemy_start: Optional[tuple[int, int]] = None      # tile coords, guessed from start locations
     enemy_buildings_seen: dict[int, tuple[int, int]] = field(default_factory=dict)  # unit id -> pixel pos
+    enemy_building_list: list[tuple[int, int, int]] = field(default_factory=list)  # (type, x, y)
     last_attacked_frame: int = -10_000
+    opponent: OpponentSnapshot = field(default_factory=OpponentSnapshot)
 
 
 @dataclass
@@ -37,8 +41,15 @@ class State:
     workers: np.ndarray       # own completed workers
     enemies: np.ndarray       # visible enemy units
     main_tile: tuple[int, int]                # own start location (tiles)
+    natural_tile: Optional[tuple[int, int]]   # BWEM natural (tiles)
+    main_choke: Optional[tuple[int, int]]     # pixels, choke between main and natural
     enemy_start: Optional[tuple[int, int]]    # best guess (tiles)
     under_attack: bool        # something of ours was hit recently
+    enemy_flyers: np.ndarray  # visible enemy units with the Flyer flag
+    enemy_buildings: list[tuple[int, int, int]]  # last-known fog buildings (type, x, y)
+    upgrade_level: np.ndarray # own upgrade levels, indexed by UpgradeType
+    is_upgrading: np.ndarray  # own in-progress upgrades, indexed by UpgradeType
+    opponent: OpponentSnapshot
     game: GameInfo
     obs: Observation          # escape hatch for scripted policies; a learned policy should not need it
 
@@ -52,14 +63,26 @@ class State:
     def count_completed(self, unit_type: int) -> int:
         return int(self.completed[int(unit_type)])
 
+    def has_upgrade(self, upgrade_type: int, level: int = 1) -> bool:
+        arr = self.upgrade_level
+        return arr.size > int(upgrade_type) and int(arr[int(upgrade_type)]) >= level
+
+    def upgrading(self, upgrade_type: int) -> bool:
+        arr = self.is_upgrading
+        return arr.size > int(upgrade_type) and bool(arr[int(upgrade_type)])
+
+    @property
+    def rally_point(self) -> tuple[int, int]:
+        if self.main_choke is not None:
+            return self.main_choke
+        if self.natural_tile is not None:
+            return self.natural_tile[0] * 32 + 64, self.natural_tile[1] * 32 + 48
+        return self.main_tile[0] * 32 + 64, self.main_tile[1] * 32 + 48
+
     def as_features(self) -> np.ndarray:
-        """Flat float vector for a learned policy. Extend as needed; keep it deterministic."""
-        return np.concatenate([
-            np.array([self.frame / 10_000, self.minerals / 1_000, self.gas / 1_000,
-                      self.supply_used / 200, self.supply_total / 200, float(self.under_attack),
-                      len(self.army) / 100, len(self.enemies) / 100], dtype=np.float32),
-            self.counts.astype(np.float32) / 50,
-        ])
+        """Fixed vector for a learned policy. See features.FEATURE_NAMES."""
+        from .features import encode
+        return encode(self)
 
 
 def perceive(obs: Observation, game: GameInfo, mem: Memory) -> State:
@@ -69,13 +92,9 @@ def perceive(obs: Observation, game: GameInfo, mem: Memory) -> State:
     is_worker = (tflags & UnitTypeFlag.Worker) != 0
     is_army = ((tflags & UnitTypeFlag.CanAttack) != 0) & ~is_worker & ((tflags & UnitTypeFlag.Building) == 0)
 
-    if (obs.my_units["flags"] & UnitFlag.RecentlyAttacked).any():
-        mem.last_attacked_frame = obs.frame_count
-
     enemies = obs.enemy_units
     etypes = np.clip(enemies["type"], 0, len(game.unit_types) - 1)
-    for u in enemies[(game.unit_types["flags"][etypes] & UnitTypeFlag.Building) != 0]:
-        mem.enemy_buildings_seen[int(u["id"])] = (int(u["x"]), int(u["y"]))
+    eflags = game.unit_types["flags"][etypes]
 
     me = obs.me
     n = len(game.unit_types)
@@ -94,8 +113,15 @@ def perceive(obs: Observation, game: GameInfo, mem: Memory) -> State:
         workers=mine[is_worker],
         enemies=enemies,
         main_tile=tuple(game.self_player.start_location),
+        natural_tile=game.natural.tile if game.natural is not None else None,
+        main_choke=game.main_choke.center if game.main_choke is not None else None,
         enemy_start=mem.enemy_start,
         under_attack=obs.frame_count - mem.last_attacked_frame < 24 * 5,
+        enemy_flyers=enemies[(eflags & UnitTypeFlag.Flyer) != 0],
+        enemy_buildings=list(mem.enemy_building_list),
+        upgrade_level=me.upgrade_level,
+        is_upgrading=me.is_upgrading,
+        opponent=mem.opponent,
         game=game,
         obs=obs,
     )

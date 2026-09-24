@@ -1,187 +1,130 @@
-"""MyBot: the `bwbot.Bot` subclass the runner drives. Glue between game and policy.
+"""MyBot: glue between the game and the manager stack.
 
-Per decision (every `config.frame_skip` frames):
-    1. state.perceive(obs)          -> State
-    2. self.policy.decide(state)    -> [Intent, ...]
-    3. execute each Intent          -> act.train / act.build / act.attack_move / ...
-    4. standing orders that no policy should have to think about (idle workers mine)
-    5. HUD
+Per decision:
+    InformationManager -> perceive -> Policy -> Production -> Buildings
+    -> scout / repairs -> Workers -> CombatCommander -> HUD
 
-Execution is deliberately conservative: one build per structure type at a time, minerals reserved
-for pending builds, no command spam (only idle units get new orders). Known gaps for other races:
-no pylon-power check for Protoss placement, no creep check for Zerg.
+Strategy stays a Policy so it can later be learned. Managers own the messy loop.
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 from typing import Optional
 
-from bwbot import Actions, Bot, ClientConfig, EventType, GameInfo, Observation, UnitType
+from bwbot import Actions, Bot, ClientConfig, GameInfo, Observation, Race
 
-from . import macro
-from .policy import Attack, Build, Intent, Policy, Rally, ScriptedPolicy, Train
-from .state import Memory, State, perceive
+from .buildings import BuildingManager
+from .combat import CombatCommander
+from .information import InformationManager
+from .logger import GameLogger
+from .macro import Placer
+from .opponent import OPENING_NAMES, OpponentModel
+from .policy import Intent, Policy, ScriptedPolicy
+from .production import ProductionManager
+from .scout import ScoutManager
+from .state import State, perceive
+from .tactics import from_intents
+from .workers import WorkerManager
 
 log = logging.getLogger("mybot")
 
-BUILD_TIMEOUT_FRAMES = 24 * 15   # give up on a build order if construction hasn't started in 15 s
-
-
-@dataclass
-class _Budget:
-    minerals: int
-    gas: int
-    supply: int                  # displayed supply left
-
-    def can_afford(self, game: GameInfo, unit_type: int) -> bool:
-        t = game.unit_types[int(unit_type)]
-        return (self.minerals >= t["mineral_price"] and self.gas >= t["gas_price"]
-                and self.supply >= t["supply_required"] // 2)
-
-    def spend(self, game: GameInfo, unit_type: int) -> None:
-        t = game.unit_types[int(unit_type)]
-        self.minerals -= int(t["mineral_price"])
-        self.gas -= int(t["gas_price"])
-        self.supply -= int(t["supply_required"]) // 2
-
-
-@dataclass
-class _PendingBuild:
-    frame: int                   # when the order was issued
-    builder: int                 # worker unit id
-    tile: tuple[int, int]        # top-left tile
-
 
 class MyBot(Bot):
-    # frame_skip=4: decide ~6x per game second; local_speed=0: run the game as fast as it goes
-    # (use `python run.py --speed 42` to watch at human speed). Tiles (explored/visible map) are
-    # needed for building placement.
     config = ClientConfig(frame_skip=4, local_speed=0, include_tiles=True)
+    apm_budget: Optional[float] = 400.0
 
     def __init__(self, policy: Optional[Policy] = None) -> None:
         self.policy: Policy = policy or ScriptedPolicy()
-        self.mem = Memory()
+        self.info = InformationManager()
         self.state: Optional[State] = None
-        self.pending: dict[int, _PendingBuild] = {}     # structure type -> in-flight build order
-        self.failed_tiles: set[tuple[int, int]] = set()  # placements that timed out this game
+        self.workers = WorkerManager()
+        self.buildings = BuildingManager()
+        self.production = ProductionManager()
+        self.placer = Placer()
+        self.scout = ScoutManager()
+        self.combat = CombatCommander()
+        self.opponent = OpponentModel()
+        self.logger = GameLogger()
+        self._stance = "none"
 
-    # ------------------------------------------------------------------ lifecycle
     def on_start(self, game: GameInfo) -> None:
-        self.mem = Memory()
+        self.info.on_start(game)
         self.state = None
-        self.pending = {}
-        self.failed_tiles = set()
-        me = game.self_player
-        others = [tuple(s) for s in game.start_locations.tolist() if tuple(s) != tuple(me.start_location)]
-        if others:
-            self.mem.enemy_start = others[0]   # 2-player maps: the only other start; else a guess
-        log.info("start: map=%s me=%s race=%s start=%s enemy_start=%s policy=%s", game.map_name, me.name,
-                 game.self_race.name, me.start_location, self.mem.enemy_start, type(self.policy).__name__)
+        self.workers.reset()
+        self.buildings.reset()
+        self.production.reset()
+        self.placer.reset()
+        self.scout.on_start(game, self.info)
+        self.opponent.on_start(game)
+        self.logger.on_start(game.map_name, type(self.policy).__name__)
+        self._stance = "none"
+        log.info("start: map=%s me=%s race=%s start=%s enemy_start=%s policy=%s", game.map_name,
+                 game.self_player.name, game.self_race.name, game.self_player.start_location,
+                 self.info.enemy_start, type(self.policy).__name__)
 
     def on_frame(self, obs: Observation, act: Actions) -> None:
-        self._update_pending(obs)
-        s = self.state = perceive(obs, self.game, self.mem)
+        self.info.update(obs, self.game)
+        self.opponent.update(obs, self.game, self.info)
+        mem = self.info.as_memory()
+        mem.opponent = self.opponent.snapshot()
+        s = self.state = perceive(obs, self.game, mem)
         intents = self.policy.decide(s)
-
-        budget = _Budget(s.minerals - self._reserved_minerals(), s.gas - self._reserved_gas(), s.supply_left)
-        for intent in intents:
-            self._execute(intent, s, act, budget)
-
-        self._idle_workers_mine(s, act)
+        self.logger.record(s, intents)
+        army = self.production.ingest(intents, self.buildings)
+        self.production.update(s, act, self.buildings)
+        self.buildings.update(s, act, self.workers, self.placer)
+        self.scout.update(s, act, self.workers, self.info)
+        self.on_workers_ready(s, act)
+        self.workers.update(s, act)
+        self._stance = self.combat.update(s, act, army, self.info)
         self._hud(s, act, intents)
 
+    def on_workers_ready(self, s: State, act: Actions) -> None:
+        """Hook after construction/scout claims, before mineral/gas assignment."""
+
     def on_end(self, is_winner: bool) -> None:
-        log.info("end: %s at frame %s", "WIN" if is_winner else "LOSS", self.state.frame if self.state else "?")
+        frame = self.state.frame if self.state else 0
+        snap = self.opponent.snapshot()
+        log.info("end: %s at frame %s opp=%s open=%s", "WIN" if is_winner else "LOSS", frame,
+                 snap.race, OPENING_NAMES[snap.opening] if snap.opening < len(OPENING_NAMES) else snap.opening)
+        self.logger.finish(is_winner, frame, {
+            "opp_race": snap.race, "opp_opening": snap.opening, "opp_proxy": snap.proxy,
+        })
         self.policy.on_game_end(self.state, is_winner)
 
-    # ------------------------------------------------------------------ intent execution
-    def _execute(self, intent: Intent, s: State, act: Actions, budget: _Budget) -> None:
-        if isinstance(intent, Train):
-            self._train(intent.unit_type, s, act, budget)
-        elif isinstance(intent, Build):
-            self._build(intent.unit_type, s, act, budget)
-        elif isinstance(intent, Attack):
-            for u in s.obs.idle(s.army):
-                act.attack_move(u, intent.x, intent.y)
-        elif isinstance(intent, Rally):
-            for u in s.obs.idle(s.army):
-                if abs(int(u["x"]) - intent.x) + abs(int(u["y"]) - intent.y) > 160:
-                    act.move(u, intent.x, intent.y)
-        else:
-            log.warning("unknown intent %r", intent)
-
-    def _train(self, unit_type: int, s: State, act: Actions, budget: _Budget) -> None:
-        if not budget.can_afford(self.game, unit_type):
-            return
-        producer_type = int(self.game.unit_types["what_builds"][int(unit_type)])
-        producers = s.obs.my_completed(producer_type)
-        if producer_type == UnitType.Zerg_Larva:
-            if len(producers):
-                act.morph(producers[0], unit_type)
-                budget.spend(self.game, unit_type)
-            return
-        idle = producers[producers["train_queue_count"] == 0]
-        if len(idle):
-            act.train(idle[0], unit_type)
-            budget.spend(self.game, unit_type)
-
-    def _build(self, unit_type: int, s: State, act: Actions, budget: _Budget) -> None:
-        if unit_type in self.pending or not budget.can_afford(self.game, unit_type) or len(s.workers) == 0:
-            return
-        tile = macro.find_build_tile(s.obs, unit_type, s.main_tile, skip=frozenset(self.failed_tiles))
-        if tile is None:
-            log.warning("no placement found for %s", self.game.type_name(unit_type))
-            return
-        builder = macro.pick_builder(s.obs, s.workers, tile)
-        if builder is None:
-            return
-        act.build(builder, unit_type, tile[0], tile[1])
-        budget.spend(self.game, unit_type)
-        self.pending[int(unit_type)] = _PendingBuild(s.frame, int(builder["id"]), tile)
-        log.info("f%d build %s at tile %s with worker #%d", s.frame, self.game.type_name(unit_type), tile,
-                 int(builder["id"]))
-
-    # ------------------------------------------------------------------ bookkeeping
-    def _update_pending(self, obs: Observation) -> None:
-        """A pending build is done once its structure appears (UnitCreate); on timeout, drop it and
-        avoid that tile for the rest of the game."""
-        for e in obs.iter_events(EventType.UnitCreate):
-            u = obs.unit(e.unit)
-            if u is not None and int(u["player"]) == obs.self_id:
-                self.pending.pop(int(u["type"]), None)
-        for t, pb in list(self.pending.items()):
-            if obs.frame_count - pb.frame > BUILD_TIMEOUT_FRAMES:
-                log.warning("f%d build %s at %s timed out; blacklisting tile", obs.frame_count,
-                            self.game.type_name(t), pb.tile)
-                self.failed_tiles.add(pb.tile)
-                del self.pending[t]
-
-    def _reserved_minerals(self) -> int:
-        return sum(int(self.game.unit_types["mineral_price"][t]) for t in self.pending)
-
-    def _reserved_gas(self) -> int:
-        return sum(int(self.game.unit_types["gas_price"][t]) for t in self.pending)
-
-    def _idle_workers_mine(self, s: State, act: Actions) -> None:
-        builders = {pb.builder for pb in self.pending.values()}
-        fields = s.obs.minerals_fields
-        for w in s.obs.idle(s.workers):
-            if int(w["id"]) in builders:
-                continue
-            patch = s.obs.nearest(fields, w["x"], w["y"])
-            if patch is not None:
-                act.gather(w, patch)
-
     def _hud(self, s: State, act: Actions, intents: list[Intent]) -> None:
+        jobs = ",".join(s.game.type_name(t.unit_type) + ":" + t.status for t in self.buildings.tasks) or "-"
+        queued = ",".join(s.game.type_name(t) for t in self.production.queue) or "-"
+        scout = f"#{self.scout.worker_id}" if self.scout.worker_id else ("done" if self.scout.done else "wait")
         act.draw_text_screen(10, 10, f"{type(self.policy).__name__}  f{s.frame}  min {s.minerals}  gas {s.gas}  "
                                      f"supply {s.supply_used}/{s.supply_total}")
         act.draw_text_screen(10, 22, f"workers {len(s.workers)}  army {len(s.army)}  enemies {len(s.enemies)}  "
-                                     f"pending {[self.game.type_name(t) for t in self.pending]}")
-        act.draw_text_screen(10, 34, "intents: " + ", ".join(type(i).__name__ for i in intents))
-        for t, pb in self.pending.items():
-            u = s.obs.unit(pb.builder)
-            if u is not None:
-                act.draw_circle(int(u["x"]), int(u["y"]), 12)
-            act.draw_tile_box(pb.tile[0], pb.tile[1], int(self.game.unit_types["tile_width"][t]),
-                              int(self.game.unit_types["tile_height"][t]))
+                                     f"fog {len(s.enemy_buildings)}  queue [{queued}]")
+        nat = f"{s.natural_tile}" if s.natural_tile else "-"
+        act.draw_text_screen(10, 34, f"builds [{jobs}]  combat {self._stance}  scout {scout}  "
+                                     f"natural {nat}  bases {len(s.game.bases)}  "
+                                     f"intents: " + ", ".join(type(i).__name__ for i in intents))
+        opp = s.opponent
+        opening = OPENING_NAMES[opp.opening] if 0 <= opp.opening < len(OPENING_NAMES) else "?"
+        try:
+            rname = Race(int(opp.race)).name
+        except ValueError:
+            rname = str(opp.race)
+        act.draw_text_screen(10, 46, f"opp race={rname}  open={opening}  air={opp.air_units}  "
+                                     f"proxy={int(opp.proxy)}  tactic={from_intents(intents, s).name.lower()}")
+        for task in self.buildings.tasks:
+            if task.worker_id is not None:
+                u = s.obs.unit(task.worker_id)
+                if u is not None:
+                    act.draw_circle(int(u["x"]), int(u["y"]), 12)
+            if task.tile is not None:
+                act.draw_tile_box(task.tile[0], task.tile[1],
+                                  int(s.game.unit_types["tile_width"][task.unit_type]),
+                                  int(s.game.unit_types["tile_height"][task.unit_type]))
+        for _, x, y in s.enemy_buildings:
+            act.draw_box(x - 16, y - 16, x + 16, y + 16)
+        if s.natural_tile is not None:
+            act.draw_box(s.natural_tile[0] * 32, s.natural_tile[1] * 32,
+                         s.natural_tile[0] * 32 + 128, s.natural_tile[1] * 32 + 96)
+        if s.main_choke is not None:
+            act.draw_circle(s.main_choke[0], s.main_choke[1], 24)

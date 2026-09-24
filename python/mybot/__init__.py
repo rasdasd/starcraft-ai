@@ -9,12 +9,22 @@ or directly (shim + StarCraft already running):
 
     cd python && .venv\\Scripts\\python -m bwbot.run mybot
 
-Layout - three layers so the decision-making part can be swapped without touching the rest:
+Layout:
 
-    state.py    perceive(obs)  -> State        what the agent sees   (features)
-    policy.py   Policy.decide(State) -> Intents what the agent wants  (deterministic now, ML later)
-    bot.py      MyBot executes Intents          how it happens        (BWAPI commands via `act`)
-    macro.py    building placement / builder selection helpers used by bot.py
+    state.py        perceive(obs) -> State
+    policy.py       Policy.decide(State) -> Intents     (strategy; swap for ML later)
+    opening.py      supply-gated build lists (data, not if-trees)
+    production.py   queue + train / addon / upgrade
+    buildings.py    construction state machine
+    workers.py      mineral / gas / build / repair / scout jobs
+    information.py  fog memory for enemy buildings
+    scout.py        one SCV to the other start
+    combat.py       defend / push / hunt-air (home includes the BWEM natural)
+    opponent.py     race / timings / opening guess (the picture a policy may learn from)
+    learned.py      teacher + opponent prior, or a fitted LinearPolicy
+    logger.py / train.py   log decisions, fit models/policy.npz
+    macro.py        reserved-tile placer
+    bot.py          MyBot ticks managers each decision
 
 `bwbot.run` looks for a module attribute named BOT, so this package is runnable as-is.
 """
