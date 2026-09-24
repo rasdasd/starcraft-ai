@@ -40,12 +40,17 @@ Key decisions:
 ```
 game/                 (git-ignored) StarCraft 1.16.1 + BWAPI 4.4.0 runtime, maps/BroodWar/{sscai,aiide,cog}/, replays
 proto/bw.fbs          wire protocol (FlatBuffers schema) - the single source of truth
-shim/                 C++ shim: CMakeLists.txt, src/, third_party/bwapi (vendored 4.4.0 client libs)
+shim/                 C++ shim: CMakeLists.txt, src/, third_party/bwapi + bwem-community
   build/              Win32 build: shim.exe, shim_module.dll
   build-openbw/       Linux build (from WSL): shim_module.so
-python/               bwbot package (framework) + mybot/ (your bot, start here) + examples/, .venv/
+python/               bwbot package (framework) + mybot/ + goliath/ + learned/ + examples/, .venv/
+  blackboard/         blackboard framework: sections, scheduler, arbiters, recorder, numpy models
+  adjutant/           blackboard bot: components/, strategies/, learn/ (per-slot features + training)
+  harness/            self-play (OpenBW LAN) and published-bot match runners
+  tests/              unit tests (synthetic games; no StarCraft needed)
 scripts/              setup_windows.ps1, build_shim.ps1, run_native.ps1, gen_proto.ps1|sh, gen_enums.py,
-                      setup_wsl.sh, run_openbw.sh
+                      setup_wsl.sh, run_openbw.sh, freeze_bot.ps1, pack_competition.ps1
+docs/competition.md   AIIDE/BASIL run-folder layout and organizer notes
 wsl/                  (git-ignored) openbw/ + bwapi/ checkouts and build, game/ dir for BWAPILauncher
 tools/                (git-ignored) flatc
 ```
@@ -107,18 +112,37 @@ OpenBW has no built-in computer opponent: the enemy in single-player just sits i
 
 ## Writing a bot
 
-Start from `python/mybot/` — a runnable starter bot (`python run.py --bot mybot`) split into three
-layers so the decision logic can later be swapped for a learned model without touching the rest:
+Start from `python/mybot/` — a runnable starter bot (`python run.py --bot mybot`) with a swappable
+`Policy` on top of UAlbertaBot-shaped managers. `python run.py --bot goliath` is the same stack
+with a mech opener.
 
 | file | role | ML analogue |
 |---|---|---|
-| `mybot/state.py` | `perceive(obs) -> State`: counts, supply, army/worker/enemy arrays, cross-frame `Memory`; `State.as_features()` | feature extraction |
-| `mybot/policy.py` | `Policy.decide(State) -> [Train, Build, Attack, Rally]`; `ScriptedPolicy` is the deterministic Terran opener + rules | the model |
-| `mybot/bot.py` | `MyBot(Bot)`: runs perceive -> decide -> execute each decision, reserves minerals for pending builds, keeps idle workers mining, draws a HUD | environment glue |
-| `mybot/macro.py` | placement (spiral search on buildable/explored/same-height tiles) and builder selection | - |
+| `mybot/state.py` | `perceive(obs, mem) -> State`: counts, supply, army/worker/enemy arrays, fog buildings, BWEM natural / main choke; `State.as_features()` | feature extraction |
+| `mybot/policy.py` | `Policy.decide(State) -> [Train, Build, Attack, Rally, …]`; `ScriptedPolicy` walks `opening.MARINE` | the model |
+| `mybot/opening.py` | supply-gated build lists (`MARINE`, `GOLIATH`) shared by policies | - |
+| `mybot/information.py` | fog memory for enemy buildings; guessed / seen enemy start | - |
+| `mybot/opponent.py` | race, first-seen timings, opening guess, proxy flag | opponent features |
+| `mybot/learned.py` | teacher opening + opponent prior, or `LinearPolicy` from `models/policy.npz` | the model |
+| `mybot/logger.py` / `train.py` | JSONL decisions; `python -m mybot.train` fits a numpy softmax | dataset / train |
+| `mybot/production.py` | queue + train / addon / upgrade (one building at a time until started) | - |
+| `mybot/buildings.py` | construction state machine (reserve, assign SCV, re-issue, retry tile) | - |
+| `mybot/workers.py` | mineral / gas / build / repair / scout jobs | - |
+| `mybot/scout.py` | one SCV to the other start, then watch | - |
+| `mybot/combat.py` | defend / push / hunt-air; no leave-home under 3 army | - |
+| `mybot/macro.py` | reserved-tile placer (mineral-line exclusion, geyser refineries, BWAPI legality) | - |
+| `mybot/bot.py` | `MyBot`: ticks managers each decision and draws a HUD | environment glue |
 
-To change behaviour edit `ScriptedPolicy.BUILD_ORDER` and its rules; to go learned, write another
-class with the same `decide`/`on_game_end` methods and pass it in: `MyBot(policy=LearnedPolicy(model))`.
+To change the opener edit `opening.MARINE` / `opening.GOLIATH`. For the learning loop:
+
+```
+python run.py --bot learned              # Goliath teacher + opponent prior; logs to logs/
+python -m mybot.train --logs logs --out models/policy.npz
+python run.py --bot learned              # loads models/policy.npz (or BWBOT_MODEL / bwapi-data/read/policy.npz)
+```
+
+The model only outputs a tactic (`hold` / `defend` / `push` / `hunt_air`) and the next building.
+Managers still place tiles, assign workers, and the runner still trims to `apm_budget`.
 
 The minimal version of the same thing, without the layers:
 
@@ -155,16 +179,42 @@ run(MyBot())                           # or: python -m bwbot.run mymodule:MyBot
 - `bot.apm` (`ApmMeter`): actions per *game* minute that the bot issued - `current` (trailing minute),
   `average` (whole game), `total`, `last` (this decision). Unit commands count; game commands and
   drawing don't. The runner draws it on screen (`--no-apm-hud` to hide) and logs it; `obs.game_apm`
-  is the game's own counter for cross-checking. An APM budget will later be enforced on this meter.
+  is the game's own counter for cross-checking. `Bot.apm_budget` (default 400) caps trailing-minute
+  unit commands; the runner trims `act.unit_cmds` after `on_frame` (`--apm-budget N`, `0` = unlimited).
 - `act.*` mirrors `BWAPI::UnitCommandType` (`move`, `attack`, `build`, `train`, `research`, `use_tech_pos`,
   ...) plus game commands (`set_local_speed`, `send_text`, `leave_game`, ...) and debug drawing.
 - `bwbot.enums` mirrors BWAPI's numeric enums (`UnitType`, `Order`, `TechType`, `UpgradeType`,
   `WeaponType`, `Race`, ...), generated from the vendored headers by `scripts/gen_enums.py`.
 - `python -m bwbot.run <module[:Class]> [--frame-skip N] [--speed MS] [--no-gui] [--games N]
-  [--max-frames N] [--cheat-map-info] [--host H --port P]`.
+  [--max-frames N] [--apm-budget N] [--cheat-map-info] [--host H --port P]`.
 
 ML frameworks are optional extras and never imported by the core:
 `pip install -e "python[torch]"`, `"python[onnx]"`, `"python[tensorrt]"`.
+
+## Adjutant (blackboard bot)
+
+`python/blackboard/` is a bot-agnostic framework: typed board sections, components that each fill
+one *slot*, a phased scheduler (SENSE → DECIDE → PLAN → ACT → REPORT) with per-component periods,
+event triggers, a 40 ms decision budget and fallback to a scripted teacher when a component keeps
+failing, plus arbiters for unit leases, money and command priority (commands are sorted by priority
+before the runner's APM trim). `python/adjutant/` is the Terran bot built on it.
+
+```
+python run.py --bot adjutant                 # default profile
+python run.py --bot adjutant:Parity          # the goliath bot, rebuilt from adapters over the mybot managers
+BWBOT_PROFILE_FILE=my.json python run.py --bot adjutant
+```
+
+A profile says which implementation fills each slot. Override any part with JSON, for example:
+
+```json
+{"base": "adjutant", "slots": {"strategy": {"impl": "ScriptedStrategy", "template": "bio_2rax"}}}
+```
+
+The HUD shows one line per section and the per-slot timings. Each game writes a slot-tagged JSONL
+log (`logs/adjutant/`, or `bwapi-data/write/adjutant-logs/` in tournaments) that the trainers read.
+Models are numpy `.npz` files (no torch at inference), looked up in `bwapi-data/read/`, the
+competition pack's `AI/models/`, then `python/models/`. Tests: `cd python; .venv\Scripts\python -m pytest`.
 
 ## Protocol
 
@@ -176,7 +226,8 @@ Message }`, file identifier `BWB1`.
 shim -> bot   Hello         protocol_version, shim_version, backend ("bwapi-4.4.0" | "openbw")
 bot  -> shim  ClientConfig  frame_skip, include_bullets/tiles/players, local_speed, gui, complete_map_information, user_input
 shim -> bot   GameStart     map name/size/hash, ground_height, buildable, walkable (walk tiles), region_id,
-                            start_locations, players, self/enemy/neutral ids, unit/weapon/upgrade/tech type tables
+                            start_locations, players, self/enemy/neutral ids, unit/weapon/upgrade/tech type tables,
+                            BWEM areas/bases/chokes, start_bases, self_main_id, self_natural_id
 loop:
 shim -> bot   Frame         frame_count, players (resources, supply, counts), units:[UnitState], bullets, events,
                             tiles (visible/explored/creep bits), nuke_dots, serialize_us, last_roundtrip_us
@@ -232,7 +283,12 @@ building `flatc`.
 
 ## References
 
+- Competition zip (AIIDE/BASIL): `scripts\pack_competition.ps1` → `dist/competition/<Name>/`. See
+  [docs/competition.md](docs/competition.md). `BotName.dll` is the 32-bit shim module; `bot.exe` is
+  the frozen 64-bit Python brain.
 - BWAPI 4.4.0: https://github.com/bwapi/bwapi (vendored under `shim/third_party/bwapi`, LGPL)
+- BWEM-community: https://github.com/N00byEdge/BWEM-community (vendored under
+  `shim/third_party/bwem-community`, MIT/X11)
 - OpenBW: https://github.com/OpenBW/openbw and https://github.com/OpenBW/bwapi
 - STARTcraft (launch procedure, client loop reference): https://github.com/davechurchill/STARTcraft
 - Game files mirror: https://davechurchill.ca/starcraft/
