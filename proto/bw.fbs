@@ -152,6 +152,46 @@ table PlayerInfo {
   color:int;
 }
 
+// BWEM analysis (filled by the shim at match start). Ids are shim-assigned, 0-based.
+table MapArea {
+  id:int;
+  top_x:int;               // walk tile of the highest-altitude MiniTile
+  top_y:int;
+  left:int;                // bounding box in build tiles
+  top:int;
+  right:int;
+  bottom:int;
+}
+
+table MapBase {
+  id:int;
+  area_id:int;
+  tile_x:int;              // depot top-left (build tiles)
+  tile_y:int;
+  center_x:int;            // pixels
+  center_y:int;
+  minerals:int;
+  geysers:int;
+  starting:bool;           // assigned to a BWAPI start location
+}
+
+table MapChoke {
+  id:int;
+  area_a:int;
+  area_b:int;
+  center_x:int;            // pixels
+  center_y:int;
+  width:int;               // pixels between the two end nodes
+  blocking:bool;           // mineral / building block (pseudo-choke)
+}
+
+table StartBase {
+  tile_x:int;              // BWAPI start location (tiles)
+  tile_y:int;
+  base_id:int;             // MapBase.id, or -1
+  natural_id:int;          // closest other base by ground path, or -1
+}
+
 table GameStart {
   map_name:string;
   map_file_name:string;
@@ -179,6 +219,12 @@ table GameStart {
   upgrade_types:[UpgradeTypeInfo];
   tech_types:[TechTypeInfo];
   frame_skip:int;          // effective value after ClientConfig
+  areas:[MapArea];
+  bases:[MapBase];
+  chokes:[MapChoke];
+  start_bases:[StartBase];
+  self_main_id:int = -1;
+  self_natural_id:int = -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,6 +374,14 @@ table Event {
 // Bit layout for Frame.tiles bytes (one per build tile).
 enum TileFlag : ubyte (bit_flags) { Visible, Explored, Creep }
 
+// Answers to PlacementQuery from the previous Commands (see bot -> shim).
+table PlacementResult {
+  id:int;
+  ok:bool;
+  tile_x:int;
+  tile_y:int;
+}
+
 table Frame {
   frame_count:int;
   elapsed_time:int;        // seconds
@@ -348,6 +402,7 @@ table Frame {
   serialize_us:int;
   last_roundtrip_us:int;   // send previous Frame -> received Commands
   game_apm:int;            // Broodwar->getAPM(): the game's own actions-per-minute for our player
+  placement_results:[PlacementResult];  // answers to PlacementQuery from the previous Commands
 }
 
 table GameEnd {
@@ -415,11 +470,23 @@ table DrawCommand {
   text_size:int = 1;       // Text::Size::Enum (0 small, 1 default, 2 large, 3 huge)
 }
 
+// Bot asks the shim to run BWAPI placement. Answers come back on the next Frame
+// as placement_results (one-decision delay). kind: 0 = canBuildHere, 1 = getBuildLocation.
+table PlacementQuery {
+  id:int;                  // bot-chosen request id, echoed in PlacementResult
+  kind:int;                // 0 canBuildHere, 1 getBuildLocation
+  unit_type:int;
+  tile_x:int;              // canBuildHere: candidate; getBuildLocation: desired
+  tile_y:int;
+  max_range:int = 64;
+}
+
 table Commands {
   frame_count:int;         // echo of Frame.frame_count this responds to
   unit_commands:[UnitCommand];
   game_commands:[GameCommand];
   draws:[DrawCommand];
+  placement_queries:[PlacementQuery];
 }
 
 // ---------------------------------------------------------------------------

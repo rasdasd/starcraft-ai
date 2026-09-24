@@ -114,13 +114,32 @@ else()
 endif()
 
 # ---------------------------------------------------------------------------
+# BWEM (map analysis). Vendored community fork; mapPrinter is compiled out.
+# ---------------------------------------------------------------------------
+set(BWEM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/bwem-community/BWEM)
+file(GLOB BWEM_SRC ${BWEM_DIR}/src/*.cpp)
+add_library(BWEM STATIC ${BWEM_SRC})
+target_include_directories(BWEM PUBLIC ${BWEM_DIR}/include)
+target_include_directories(BWEM PRIVATE ${SHIM_BWAPI_INCLUDE})
+target_link_libraries(BWEM PUBLIC ${SHIM_BWAPI_LIBS})
+target_compile_definitions(BWEM PRIVATE NOMINMAX)
+if(MSVC)
+  target_compile_options(BWEM PRIVATE /W3 /EHsc /MP /wd4244 /wd4267 /wd4996 /permissive-)
+  target_compile_definitions(BWEM PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+if(SHIM_BACKEND STREQUAL "openbw" AND NOT MSVC)
+  target_compile_options(BWEM PRIVATE -include cstdint)
+endif()
+
+# ---------------------------------------------------------------------------
 # Shim core (backend-agnostic: serializer, command applier, transport)
 # ---------------------------------------------------------------------------
 add_library(shim_core STATIC
   src/Transport.cpp
   src/Serializer.cpp
   src/CommandApplier.cpp
-  src/Bridge.cpp)
+  src/Bridge.cpp
+  src/MapAnalysis.cpp)
 add_dependencies(shim_core shim_proto)
 target_include_directories(shim_core
   PUBLIC src ${SHIM_GEN_DIR} ${SHIM_BWAPI_INCLUDE} ${flatbuffers_SOURCE_DIR}/include)
@@ -134,7 +153,7 @@ if(SHIM_BACKEND STREQUAL "openbw")
     target_compile_options(shim_core PUBLIC -include cstdint)
   endif()
 endif()
-target_link_libraries(shim_core PUBLIC ${SHIM_BWAPI_LIBS})
+target_link_libraries(shim_core PUBLIC ${SHIM_BWAPI_LIBS} BWEM)
 if(WIN32)
   target_link_libraries(shim_core PUBLIC ws2_32)
   target_compile_definitions(shim_core PUBLIC NOMINMAX WIN32 _WIN32_WINNT=0x0601 _CRT_SECURE_NO_WARNINGS)

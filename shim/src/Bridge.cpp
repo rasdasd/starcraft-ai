@@ -1,4 +1,5 @@
 #include "Bridge.h"
+#include "MapAnalysis.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -130,6 +131,7 @@ void Bridge::onStart() {
   decisions_ = 0;
   statsT0_ = clock_t_::now();
   std::cout << "[shim] match start: " << Broodwar->mapFileName() << " frame=" << Broodwar->getFrameCount() << std::endl;
+  initMapAnalysis();
   if (Broodwar->isReplay()) {
     std::cout << "[shim] replay mode: streaming frames, commands ignored by the game" << std::endl;
   }
@@ -176,6 +178,32 @@ void Bridge::onFrame() {
   if (opt_.statsEvery > 0 && decisions_ > 0 && decisions_ % opt_.statsEvery == 0) printStats();
 }
 
+static std::vector<bw::PlacementResultT> answerPlacement(const bw::Commands& cmds) {
+  std::vector<bw::PlacementResultT> out;
+  auto* qs = cmds.placement_queries();
+  if (!qs) return out;
+  out.reserve(qs->size());
+  for (const bw::PlacementQuery* q : *qs) {
+    bw::PlacementResultT r;
+    r.id = q->id();
+    BWAPI::UnitType type(q->unit_type());
+    BWAPI::TilePosition desired(q->tile_x(), q->tile_y());
+    if (q->kind() == 1) {
+      int range = q->max_range() > 0 ? q->max_range() : 64;
+      BWAPI::TilePosition tp = Broodwar->getBuildLocation(type, desired, range, false);
+      r.ok = tp.isValid();
+      r.tile_x = tp.x;
+      r.tile_y = tp.y;
+    } else {
+      r.ok = Broodwar->canBuildHere(desired, type, nullptr, true);
+      r.tile_x = q->tile_x();
+      r.tile_y = q->tile_y();
+    }
+    out.push_back(std::move(r));
+  }
+  return out;
+}
+
 bool Bridge::exchangeFrame() {
   auto t0 = clock_t_::now();
   fbb_.Clear();
@@ -202,7 +230,9 @@ bool Bridge::exchangeFrame() {
       lastRoundtripUs_ = usSince(t1);
       rttAcc_.add(lastRoundtripUs_);
       auto t2 = clock_t_::now();
-      ApplyStats st = applier_.apply(*env->msg_as_Commands());
+      const bw::Commands* cmds = env->msg_as_Commands();
+      ApplyStats st = applier_.apply(*cmds);
+      serializer_.setPlacementResults(answerPlacement(*cmds));
       applyAcc_.add(usSince(t2));
       if (opt_.verbose && st.unitCommandsFailed)
         std::cout << "[shim] frame " << Broodwar->getFrameCount() << ": " << st.unitCommandsFailed << "/"

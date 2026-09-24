@@ -31,7 +31,11 @@ public:
 
   void buildHello(flatbuffers::FlatBufferBuilder& fbb);
 
-  void reset() { lastHp_.clear(); }
+  void reset() { lastHp_.clear(); placementResults_.clear(); }
+
+  void setPlacementResults(std::vector<bw::PlacementResultT> results) {
+    placementResults_ = std::move(results);
+  }
 
 private:
   bw::UnitState unitState(BWAPI::Unit u, const BWAPI::Playerset& players);
@@ -39,6 +43,7 @@ private:
   flatbuffers::Offset<bw::PlayerInfo> playerInfo(flatbuffers::FlatBufferBuilder& fbb, BWAPI::Player p);
 
   std::unordered_map<int, int> lastHp_;
+  std::vector<bw::PlacementResultT> placementResults_;
 };
 
 inline int idOf(BWAPI::Unit u) { return u ? u->getID() : -1; }

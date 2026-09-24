@@ -1,4 +1,5 @@
 #include "Serializer.h"
+#include "MapAnalysis.h"
 
 #include <algorithm>
 #include <string>
@@ -238,6 +239,7 @@ void Serializer::buildGameStart(fb::FlatBufferBuilder& fbb, int frameSkip) {
   auto mapFile = fbb.CreateString(g->mapFileName());
   auto mapPath = fbb.CreateString(g->mapPathName());
   auto mapHash = fbb.CreateString(g->mapHash());
+  auto mapAn = buildMapAnalysis(fbb);
 
   unsigned seed = 0;
 #ifndef SHIM_OPENBW
@@ -269,6 +271,12 @@ void Serializer::buildGameStart(fb::FlatBufferBuilder& fbb, int frameSkip) {
   b.add_upgrade_types(upgradeTypesOff);
   b.add_tech_types(techTypesOff);
   b.add_frame_skip(frameSkip);
+  b.add_areas(mapAn.areas);
+  b.add_bases(mapAn.bases);
+  b.add_chokes(mapAn.chokes);
+  b.add_start_bases(mapAn.startBases);
+  b.add_self_main_id(mapAn.selfMainId);
+  b.add_self_natural_id(mapAn.selfNaturalId);
   auto gs = b.Finish();
 
   auto env = bw::CreateEnvelope(fbb, bw::Message::GameStart, gs.Union());
@@ -506,6 +514,14 @@ void Serializer::buildFrame(fb::FlatBufferBuilder& fbb, const std::vector<Event>
   for (const Position& p : g->getNukeDots()) nukes.emplace_back(p.x, p.y);
   auto nukesOff = fbb.CreateVectorOfStructs(nukes);
 
+  std::vector<fb::Offset<bw::PlacementResult>> placeOffs;
+  placeOffs.reserve(placementResults_.size());
+  for (const auto& r : placementResults_) {
+    placeOffs.push_back(bw::CreatePlacementResult(fbb, r.id, r.ok, r.tile_x, r.tile_y));
+  }
+  auto placeOff = fbb.CreateVector(placeOffs);
+  placementResults_.clear();
+
   bw::FrameBuilder b(fbb);
   b.add_frame_count(g->getFrameCount());
   b.add_elapsed_time(g->elapsedTime());
@@ -529,6 +545,7 @@ void Serializer::buildFrame(fb::FlatBufferBuilder& fbb, const std::vector<Event>
   b.add_serialize_us(serializeUs);
   b.add_last_roundtrip_us(lastRoundtripUs);
   b.add_game_apm(g->getAPM());
+  if (!placeOffs.empty()) b.add_placement_results(placeOff);
   auto frame = b.Finish();
 
   auto env = bw::CreateEnvelope(fbb, bw::Message::Frame, frame.Union());
