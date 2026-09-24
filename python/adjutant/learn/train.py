@@ -97,9 +97,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--l2", type=float, default=1e-3)
     s.add_argument("--lr", type=float, default=1e-2)
     s.add_argument("--seed", type=int, default=0)
+    s = sub.add_parser("belief", help="LearnedBelief heads from truth rows (complete-map-information games)")
+    s.add_argument("--logs", nargs="+", required=True)
+    s.add_argument("--out", default="models", help="directory for belief_*.npz")
+    s.add_argument("--hidden", type=int, nargs="*", default=[32])
+    s.add_argument("--epochs", type=int, default=200)
+    s.add_argument("--l2", type=float, default=1e-4)
+    s.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
     if args.what == "strategy":
         return train_strategy(args)
+    if args.what == "belief":
+        from .belief import train_belief
+        return train_belief(args)
     return 2
 
 

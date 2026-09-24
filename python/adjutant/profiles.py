@@ -35,7 +35,11 @@ BUILTINS: dict[str, dict] = {
     "rules": {"base": "planned", "name": "rules", "slots": {"strategy": {"impl": "RuleSelector"}}},
     # data collection for the strategy win model
     "explore": {"base": "planned", "name": "explore", "slots": {"strategy": {"impl": "Explore"}}},
+    # belief training data: full map information -> `truth`, hidden again by Perception's fog filter
+    "truth": {"base": "explore", "name": "truth", "config": {"complete_map_information": True},
+              "slots": {"belief_log": {"impl": "BeliefLog"}}},
     "learned": {"base": "planned", "name": "learned", "slots": {
+        "belief": {"impl": "LearnedBelief"},
         "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "select", "epsilon": 0.05}}},
     "blend": {"base": "planned", "name": "blend", "slots": {
         "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "blend"}}},
