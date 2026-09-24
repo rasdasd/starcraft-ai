@@ -26,7 +26,11 @@ bwbot = "bwbot.run:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["bwbot*"]
+include = ["bwbot*", "blackboard*", "adjutant*", "harness*", "mybot*", "goliath*", "sparring*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 120

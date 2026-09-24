@@ -197,6 +197,44 @@ class PlayerInfo:
         )
 
 
+@dataclass(frozen=True)
+class MapArea:
+    id: int
+    top: tuple[int, int]           # walk tile
+    left: int
+    top_tile: int
+    right: int
+    bottom: int
+
+
+@dataclass(frozen=True)
+class MapBase:
+    id: int
+    area_id: int
+    tile: tuple[int, int]
+    center: tuple[int, int]        # pixels
+    minerals: int
+    geysers: int
+    starting: bool
+
+
+@dataclass(frozen=True)
+class MapChoke:
+    id: int
+    area_a: int
+    area_b: int
+    center: tuple[int, int]        # pixels
+    width: int
+    blocking: bool
+
+
+@dataclass(frozen=True)
+class StartBase:
+    tile: tuple[int, int]
+    base_id: int
+    natural_id: int
+
+
 @dataclass
 class GameInfo:
     """Static per-match data from GameStart. Tile arrays are indexed [y, x]."""
@@ -227,7 +265,14 @@ class GameInfo:
     weapon_types: list[dict]
     upgrade_types: list[dict]
     tech_types: list[dict]
+    areas: list[MapArea] = field(default_factory=list)
+    bases: list[MapBase] = field(default_factory=list)
+    chokes: list[MapChoke] = field(default_factory=list)
+    start_bases: list[StartBase] = field(default_factory=list)
+    self_main_id: int = -1
+    self_natural_id: int = -1
     _by_id: dict[int, PlayerInfo] = field(default_factory=dict, repr=False)
+    _bases_by_id: dict[int, MapBase] = field(default_factory=dict, repr=False)
 
     @property
     def self_player(self) -> PlayerInfo:
@@ -249,6 +294,35 @@ class GameInfo:
 
     def type_flags(self, type_id: int) -> UnitTypeFlag:
         return UnitTypeFlag(int(self.unit_types["flags"][type_id]))
+
+    def base(self, base_id: int) -> Optional[MapBase]:
+        return self._bases_by_id.get(int(base_id))
+
+    @property
+    def main(self) -> Optional[MapBase]:
+        return self.base(self.self_main_id)
+
+    @property
+    def natural(self) -> Optional[MapBase]:
+        return self.base(self.self_natural_id)
+
+    @property
+    def main_choke(self) -> Optional[MapChoke]:
+        """Choke between the main and the natural, if they sit in different areas."""
+        m, n = self.main, self.natural
+        if m is None or n is None or m.area_id == n.area_id:
+            return None
+        want = {m.area_id, n.area_id}
+        for c in self.chokes:
+            if {c.area_a, c.area_b} == want:
+                return c
+        return None
+
+    def start_base(self, tile: tuple[int, int]) -> Optional[StartBase]:
+        for sb in self.start_bases:
+            if sb.tile == tile:
+                return sb
+        return None
 
     @classmethod
     def from_fb(cls, g: bw.GameStart) -> "GameInfo":
@@ -306,6 +380,23 @@ class GameInfo:
                 weapon=x.Weapon(), targets_unit=x.TargetsUnit(), targets_position=x.TargetsPosition(),
             )
 
+        areas = [
+            MapArea(a.Id(), (a.TopX(), a.TopY()), a.Left(), a.Top(), a.Right(), a.Bottom())
+            for a in (g.Areas(i) for i in range(g.AreasLength()))
+        ]
+        bases = [
+            MapBase(b.Id(), b.AreaId(), (b.TileX(), b.TileY()), (b.CenterX(), b.CenterY()),
+                    b.Minerals(), b.Geysers(), bool(b.Starting()))
+            for b in (g.Bases(i) for i in range(g.BasesLength()))
+        ]
+        chokes = [
+            MapChoke(c.Id(), c.AreaA(), c.AreaB(), (c.CenterX(), c.CenterY()), c.Width(), bool(c.Blocking()))
+            for c in (g.Chokes(i) for i in range(g.ChokesLength()))
+        ]
+        start_bases = [
+            StartBase((s.TileX(), s.TileY()), s.BaseId(), s.NaturalId())
+            for s in (g.StartBases(i) for i in range(g.StartBasesLength()))
+        ]
         info = cls(
             map_name=_s(g.MapName()), map_file_name=_s(g.MapFileName()), map_path_name=_s(g.MapPathName()),
             map_hash=_s(g.MapHash()), map_width=w, map_height=h,
@@ -317,8 +408,11 @@ class GameInfo:
             weapon_types=[weapon(g.WeaponTypes(i)) for i in range(g.WeaponTypesLength())],
             upgrade_types=[upgrade(g.UpgradeTypes(i)) for i in range(g.UpgradeTypesLength())],
             tech_types=[tech(g.TechTypes(i)) for i in range(g.TechTypesLength())],
+            areas=areas, bases=bases, chokes=chokes, start_bases=start_bases,
+            self_main_id=g.SelfMainId(), self_natural_id=g.SelfNaturalId(),
         )
         info._by_id = {p.id: p for p in players}
+        info._bases_by_id = {b.id: b for b in bases}
         return info
 
 
@@ -397,6 +491,7 @@ class Observation:
         "game", "frame", "frame_count", "elapsed_time", "fps", "average_fps", "latency_frames",
         "remaining_latency_frames", "is_paused", "self_id", "units", "bullets", "_players", "_events", "_tiles",
         "nuke_dots", "serialize_us", "last_roundtrip_us", "game_apm", "_by_id",
+        "_placement_results",
     )
 
     def __init__(self, game: GameInfo, frame: bw.Frame):
@@ -421,6 +516,7 @@ class Observation:
         self._events: Optional[list[Event]] = None
         self._tiles: Optional[np.ndarray] = None
         self._by_id: Optional[dict[int, int]] = None
+        self._placement_results: Optional[list[tuple[int, bool, int, int]]] = None
 
     # --- players ---------------------------------------------------------
     @property
@@ -435,6 +531,19 @@ class Observation:
     @property
     def me(self) -> PlayerState:
         return self.players[self.self_id]
+
+    @property
+    def placement_results(self) -> list[tuple[int, bool, int, int]]:
+        """Answers to last frame's placement queries: (id, ok, tile_x, tile_y)."""
+        if self._placement_results is None:
+            nfn = getattr(self.frame, "PlacementResultsLength", None)
+            out: list[tuple[int, bool, int, int]] = []
+            if nfn:
+                for i in range(nfn()):
+                    r = self.frame.PlacementResults(i)
+                    out.append((r.Id(), bool(r.Ok()), r.TileX(), r.TileY()))
+            self._placement_results = out
+        return self._placement_results
 
     @property
     def minerals(self) -> int:

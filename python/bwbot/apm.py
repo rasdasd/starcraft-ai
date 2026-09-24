@@ -11,12 +11,13 @@ Two views are kept:
 
 Only unit commands (`act.move`, `act.train`, `act.build`, ...) count. Game commands (speed,
 text) and debug drawing are free. `Observation.game_apm` is the game's own counter
-(`Broodwar->getAPM()`), useful as a cross-check; a future APM budget will be enforced on this
-meter since it counts exactly what the bot emitted.
+(`Broodwar->getAPM()`), useful as a cross-check. The runner enforces `Bot.apm_budget` against
+this meter (`commands_allowed`) so later human play is not a rewrite.
 """
 from __future__ import annotations
 
 from collections import deque
+from typing import Optional
 
 FRAMES_PER_MINUTE = 24 * 60
 
@@ -60,6 +61,19 @@ class ApmMeter:
     def average(self) -> float:
         """APM over the whole game so far."""
         return self.total * FRAMES_PER_MINUTE / max(self.elapsed_frames, self.min_window_frames)
+
+    def commands_allowed(self, frame: int, budget: Optional[float]) -> Optional[int]:
+        """Max unit commands this decision that keep trailing APM at or under `budget`.
+
+        None budget means unlimited (returns None). Always allows at least one command so
+        construction cannot freeze completely.
+        """
+        if budget is None or budget <= 0:
+            return None
+        elapsed = max(frame - self.start_frame, 0)
+        span = max(min(elapsed, self.window_frames), self.min_window_frames)
+        room = int(budget * span / FRAMES_PER_MINUTE - self._window_sum)
+        return max(1, room)
 
     def __repr__(self) -> str:
         return f"ApmMeter(current={self.current:.0f}, average={self.average:.0f}, total={self.total})"

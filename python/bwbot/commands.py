@@ -58,6 +58,16 @@ class _Draw:
 
 
 @dataclass
+class _PlaceQuery:
+    id: int
+    kind: int
+    unit_type: int
+    tile_x: int
+    tile_y: int
+    max_range: int = 64
+
+
+@dataclass
 class Actions:
     """Per-frame command sink handed to `Bot.on_frame`.
 
@@ -69,6 +79,7 @@ class Actions:
     unit_cmds: list[_UnitCmd] = field(default_factory=list)
     game_cmds: list[_GameCmd] = field(default_factory=list)
     draws: list[_Draw] = field(default_factory=list)
+    place_qs: list[_PlaceQuery] = field(default_factory=list)
 
     # ------------------------------------------------------------------ unit
     def command(self, unit: UnitRef, ctype: int, target: Optional[UnitRef] = None, x: int = 0, y: int = 0,
@@ -209,6 +220,16 @@ class Actions:
     def place_cop(self, unit: UnitRef, tile_x: int, tile_y: int) -> None:
         self.command(unit, UnitCommandType.Place_COP, x=tile_x, y=tile_y)
 
+    def can_build_here(self, req_id: int, unit_type: int, tile_x: int, tile_y: int) -> None:
+        """Ask the shim to run Broodwar->canBuildHere. Answer is on the next Frame."""
+        self.place_qs.append(_PlaceQuery(int(req_id), 0, int(unit_type), int(tile_x), int(tile_y)))
+
+    def get_build_location(self, req_id: int, unit_type: int, near_tile: tuple[int, int],
+                           max_range: int = 64) -> None:
+        """Ask the shim to run Broodwar->getBuildLocation. Answer is on the next Frame."""
+        self.place_qs.append(_PlaceQuery(int(req_id), 1, int(unit_type), int(near_tile[0]),
+                                         int(near_tile[1]), int(max_range)))
+
     # ------------------------------------------------------------------ game
     def set_local_speed(self, ms_per_frame: int) -> None:
         """0 = fastest, 42 = normal 'fastest' human speed, -1 = default."""
@@ -281,12 +302,13 @@ class Actions:
 
     # ------------------------------------------------------------------ serialize
     def __len__(self) -> int:
-        return len(self.unit_cmds) + len(self.game_cmds) + len(self.draws)
+        return len(self.unit_cmds) + len(self.game_cmds) + len(self.draws) + len(self.place_qs)
 
     def clear(self) -> None:
         self.unit_cmds.clear()
         self.game_cmds.clear()
         self.draws.clear()
+        self.place_qs.clear()
 
     def to_bytes(self) -> bytearray:
         b = flatbuffers.Builder(256 + 48 * len(self))
@@ -347,11 +369,27 @@ class Actions:
             b.PrependUOffsetTRelative(off)
         ds_vec = b.EndVector()
 
+        pqs = []
+        for q in self.place_qs:
+            bw.PlacementQueryStart(b)
+            bw.PlacementQueryAddId(b, q.id)
+            bw.PlacementQueryAddKind(b, q.kind)
+            bw.PlacementQueryAddUnitType(b, q.unit_type)
+            bw.PlacementQueryAddTileX(b, q.tile_x)
+            bw.PlacementQueryAddTileY(b, q.tile_y)
+            bw.PlacementQueryAddMaxRange(b, q.max_range)
+            pqs.append(bw.PlacementQueryEnd(b))
+        bw.CommandsStartPlacementQueriesVector(b, len(pqs))
+        for off in reversed(pqs):
+            b.PrependUOffsetTRelative(off)
+        pq_vec = b.EndVector()
+
         bw.CommandsStart(b)
         bw.CommandsAddFrameCount(b, self.frame_count)
         bw.CommandsAddUnitCommands(b, ucs_vec)
         bw.CommandsAddGameCommands(b, gcs_vec)
         bw.CommandsAddDraws(b, ds_vec)
+        bw.CommandsAddPlacementQueries(b, pq_vec)
         cmds = bw.CommandsEnd(b)
 
         bw.EnvelopeStart(b)

@@ -50,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--max-frames", type=int, default=None,
                     help="leave the game after N frames (OpenBW has no AI opponent, so games never end)")
     ap.add_argument("--no-apm-hud", action="store_true", help="don't draw the runner's APM line on screen")
+    ap.add_argument("--apm-budget", type=float, default=None,
+                    help="override Bot.apm_budget (trailing-minute unit-command cap; 0 = unlimited)")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args(argv)
 
@@ -70,6 +72,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg.include_bullets = False
     if args.cheat_map_info:
         cfg.complete_map_information = True
+    if args.apm_budget is not None:
+        bot.apm_budget = None if args.apm_budget <= 0 else args.apm_budget
 
     run(bot, host=args.host, port=args.port, games=args.games, connect_timeout=args.connect_timeout,
         max_frames=args.max_frames, apm_hud=None if args.no_apm_hud else (10, 300))

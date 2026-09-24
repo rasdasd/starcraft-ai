@@ -32,7 +32,16 @@ from .enums import (  # noqa: E402
     UpgradeType,
     WeaponType,
 )
-from .observation import GameInfo, Observation, UnitFlag, UNIT_DTYPE  # noqa: E402
+from .observation import (  # noqa: E402
+    UNIT_DTYPE,
+    GameInfo,
+    MapArea,
+    MapBase,
+    MapChoke,
+    Observation,
+    StartBase,
+    UnitFlag,
+)
 from .runner import run  # noqa: E402
 
 __all__ = [
@@ -41,6 +50,10 @@ __all__ = [
     "ClientConfig",
     "Actions",
     "GameInfo",
+    "MapArea",
+    "MapBase",
+    "MapChoke",
+    "StartBase",
     "Observation",
     "UnitFlag",
     "UNIT_DTYPE",

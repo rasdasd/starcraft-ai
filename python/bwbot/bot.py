@@ -15,13 +15,17 @@ class Bot:
     Attributes:
         config: `ClientConfig` sent to the shim at the start of every match (frame_skip, speed, ...).
         game:   `GameInfo` for the current match (set before `on_start`).
-        apm:    `ApmMeter` counting the unit commands this bot issued (maintained by the runner;
-                `apm.current` = trailing game-minute, `apm.average` = whole game).
+        apm:        `ApmMeter` counting the unit commands this bot issued (maintained by the runner;
+                    `apm.current` = trailing game-minute, `apm.average` = whole game).
+        apm_budget: trailing-minute cap on unit commands (default 400). `None` or `<= 0` = unlimited.
+                    The runner trims `act.unit_cmds` after `on_frame` so later human play is not a rewrite.
     """
 
     config: ClientConfig = ClientConfig()
     game: GameInfo
     apm: ApmMeter = ApmMeter()
+    # Trailing-minute cap on unit commands. None = unlimited. 400 is high-master human range.
+    apm_budget: float | None = 400.0
 
     def on_start(self, game: GameInfo) -> None:
         """Called once per match after GameStart is received."""

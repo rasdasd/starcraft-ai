@@ -70,6 +70,10 @@ def _play_one(bot: Bot, client: ShimClient, max_frames: Optional[int] = None,
             bot.on_frame(obs, act)
         except Exception:  # keep the game alive; a bot bug should not stall StarCraft
             log.exception("on_frame raised at frame %d", obs.frame_count)
+        budget = getattr(bot, "apm_budget", None)
+        allowed = apm.commands_allowed(obs.frame_count, budget)
+        if allowed is not None and len(act.unit_cmds) > allowed:
+            act.unit_cmds = act.unit_cmds[:allowed]
         if max_frames is not None and obs.frame_count >= max_frames and not leaving:
             log.info("max_frames=%d reached; leaving game", max_frames)
             act.leave_game()
@@ -79,8 +83,9 @@ def _play_one(bot: Bot, client: ShimClient, max_frames: Optional[int] = None,
         think_max = max(think_max, dt)
         apm.record(obs.frame_count, len(act.unit_cmds))
         if apm_hud is not None:
+            cap = f" / {budget:.0f}" if budget else ""
             act.draw_text_screen(apm_hud[0], apm_hud[1],
-                                 f"APM {apm.current:.0f}  (avg {apm.average:.0f}, game {obs.game_apm}, "
+                                 f"APM {apm.current:.0f}{cap}  (avg {apm.average:.0f}, game {obs.game_apm}, "
                                  f"{apm.last} cmds this frame)")
         client.send_commands(act.to_bytes())
         frames += 1
