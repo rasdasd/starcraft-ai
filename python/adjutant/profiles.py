@@ -31,4 +31,11 @@ BUILTINS: dict[str, dict] = {
         "production": {"impl": "GreedyPlanner"},
         "repair": {"impl": "Repair"},
     }},
+    "rules": {"base": "planned", "name": "rules", "slots": {"strategy": {"impl": "RuleSelector"}}},
+    # data collection for the strategy win model
+    "explore": {"base": "planned", "name": "explore", "slots": {"strategy": {"impl": "Explore"}}},
+    "learned": {"base": "planned", "name": "learned", "slots": {
+        "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "select", "epsilon": 0.05}}},
+    "blend": {"base": "planned", "name": "blend", "slots": {
+        "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "blend"}}},
 }

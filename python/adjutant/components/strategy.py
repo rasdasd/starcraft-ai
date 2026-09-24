@@ -3,22 +3,51 @@
 `TemplateStrategy` does the bookkeeping; subclasses only implement `choose` (which template, or a
 weighting over templates). The opening always comes from the top template; once it has finished,
 the goal can be a blend.
+
+Every implementation logs a `strategy/ctx` row (context features + active template) every 30 s
+and on each switch; `python -m adjutant.learn.train strategy` fits the win model from those rows.
+
+  ScriptedStrategy  one fixed template
+  RuleSelector      hand-written rules over meta / belief / threats
+  Explore           random template at start, random switches at checkpoints (data collection)
+  LearnedStrategy   per-template win probability; `select` the best or `blend` goals by it
 """
 from __future__ import annotations
 
 import logging
-from typing import Optional, Union
+import os
+import random
+from typing import Optional, Sequence, Union
+
+import numpy as np
 
 from blackboard import Blackboard, Component, Phase
+from blackboard.models import FeatureMismatch, Model, load_model, model_search_dirs
 from blackboard.profile import register
+from bwbot import Race
 from mybot.opening import Opening
 
 from .. import compat
-from ..strategies import Template, blend_goals, get
+from ..strategies import TEMPLATES, Template, blend_goals, get
+from ..units import AIR_TECH
 
 log = logging.getLogger("adjutant.strategy")
 
 Choice = Union[str, dict]          # template name, or {name: weight}
+KNOWN_RACES = (int(Race.Zerg), int(Race.Terran), int(Race.Protoss))
+REDECIDE_EVENTS = ("opening_changed", "enemy_race", "enemy_base_found", "under_attack", "enemy_seen")
+
+
+def race_templates(race: int, names: Optional[Sequence[str]] = None) -> list[str]:
+    pool = list(names) if names else sorted(TEMPLATES)
+    return [n for n in pool if n in TEMPLATES and TEMPLATES[n].race == race]
+
+
+def enemy_race(bb: Blackboard) -> int:
+    r = bb.meta.enemy_race
+    if r in KNOWN_RACES:
+        return int(r)
+    return int(bb.belief.enemy_race)
 
 
 class TemplateStrategy(Component):
@@ -27,16 +56,29 @@ class TemplateStrategy(Component):
     writes = ("strategy",)
     order = 10
     min_switch_frames = 24 * 30        # hysteresis: at most one switch per 30 s
+    record_every = 24 * 30
 
     def __init__(self) -> None:
         self.current: Optional[Template] = None
         self.weights: dict[str, float] = {}
+        self.values: Optional[dict[str, float]] = None
         self._opening: Optional[Opening] = None
 
     def on_start(self, bb: Blackboard) -> None:
         self.current = None
         self.weights = {}
+        self.values = None
         self._opening = None
+
+    def context(self, bb: Blackboard) -> np.ndarray:
+        from ..learn.features import strategy_context
+        return strategy_context(bb)
+
+    def _record(self, bb: Blackboard, every: int, reason: str = "") -> None:
+        if self.current is None or not bb.recorder.due("strategy", "ctx", bb.frame, every):
+            return
+        bb.record("strategy", "ctx", x=[round(float(v), 4) for v in self.context(bb)],
+                  template=self.current.name, weights=self.weights, reason=reason)
 
     def choose(self, bb: Blackboard) -> Optional[Choice]:
         """Return a template name / weights to (re)decide, or None to keep the current choice."""
@@ -53,6 +95,7 @@ class TemplateStrategy(Component):
             if self.current is not None and (self.current.name == top or not can_switch):
                 self.weights = weights
         self._apply(bb)
+        self._record(bb, self.record_every, "periodic")
 
     def _switch(self, bb: Blackboard, name: str) -> None:
         prev = self.current.name if self.current else None
@@ -67,6 +110,8 @@ class TemplateStrategy(Component):
         bb.say(f"strategy {prev} -> {name}")
         bb.record("strategy", "switch", frm=prev, to=name)
         log.info("f%d strategy %s -> %s", bb.frame, prev, name)
+        self.weights = {name: 1.0}
+        self._record(bb, 0, "switch")
 
     def _apply(self, bb: Blackboard) -> None:
         t = self.current
@@ -89,7 +134,7 @@ class TemplateStrategy(Component):
             st.opening_next = self._opening.next_build(compat.state(bb))
             st.opening_index = self._opening.i
             st.opening_done = self._opening.done
-        st.values = dict(self.weights)
+        st.values = dict(self.values if self.values is not None else self.weights)
 
     def describe(self) -> dict:
         return {"impl": self.name}
@@ -108,3 +153,183 @@ class ScriptedStrategy(TemplateStrategy):
 
     def describe(self) -> dict:
         return {"impl": self.name, "template": self.template}
+
+
+RULE_DEFAULTS = {int(Race.Zerg): "bio_2rax", int(Race.Protoss): "mech_expand", int(Race.Terran): "mech_expand"}
+
+
+@register("RuleSelector")
+class RuleSelector(TemplateStrategy):
+    """Rush or proxy seen early -> `anti_rush`; enemy air (or air tech) -> `goliath_1fact`;
+    otherwise a per-matchup default (`unknown` for random opponents until their race is seen)."""
+
+    def __init__(self, defaults: Optional[dict] = None, unknown: str = "goliath_1fact", rush_until_s: int = 360,
+                 air_units: float = 3.0) -> None:
+        super().__init__()
+        self.defaults = dict(RULE_DEFAULTS)
+        for k, v in (defaults or {}).items():
+            self.defaults[int(getattr(Race, k)) if isinstance(k, str) else int(k)] = v
+        self.unknown = unknown
+        self.rush_until = rush_until_s * 24
+        self.air_units = air_units
+
+    def rule(self, bb: Blackboard) -> str:
+        b, thr = bb.belief, bb.threats
+        rush = b.opening in ("rush", "cheese") or b.proxy or thr.has("rush") or thr.has("worker_rush") \
+            or thr.has("proxy")
+        if rush and bb.frame < self.rush_until and "anti_rush" in TEMPLATES:
+            return "anti_rush"
+        if (b.air >= self.air_units or any(t in AIR_TECH for t in b.tech)) and "goliath_1fact" in TEMPLATES:
+            return "goliath_1fact"
+        return self.defaults.get(enemy_race(bb), self.unknown)
+
+    def choose(self, bb: Blackboard) -> Optional[Choice]:
+        return self.rule(bb)
+
+    def describe(self) -> dict:
+        return {"impl": self.name, "defaults": {Race(k).name: v for k, v in self.defaults.items()}}
+
+
+def _rng(seed: Optional[int]) -> random.Random:
+    if seed is None:
+        env = os.environ.get("BWBOT_GAME_ID")
+        seed = hash(env) & 0xFFFFFFFF if env else int.from_bytes(os.urandom(4), "little")
+    return random.Random(seed)
+
+
+@register("Explore")
+class Explore(TemplateStrategy):
+    """Data collection: a uniformly random template at game start; after the opening, at each
+    checkpoint, switch to another random template with probability `switch_prob`."""
+
+    def __init__(self, templates: Optional[Sequence[str]] = None, switch_prob: float = 0.25,
+                 checkpoint_s: int = 180, seed: Optional[int] = None) -> None:
+        super().__init__()
+        self.templates = list(templates) if templates else None
+        self.switch_prob = switch_prob
+        self.checkpoint = checkpoint_s * 24
+        self.seed = seed
+
+    def on_start(self, bb: Blackboard) -> None:
+        super().on_start(bb)
+        self.rng = _rng(self.seed)
+        self.pool = race_templates(int(bb.game.self_race), self.templates)
+        self._next = self.checkpoint
+
+    def choose(self, bb: Blackboard) -> Optional[Choice]:
+        if not self.pool:
+            return None
+        if self.current is None:
+            return self.rng.choice(self.pool)
+        if bb.frame >= self._next:
+            self._next = bb.frame + self.checkpoint
+            if bb.strategy.opening_done and len(self.pool) > 1 and self.rng.random() < self.switch_prob:
+                return self.rng.choice([t for t in self.pool if t != self.current.name])
+        return None
+
+    def describe(self) -> dict:
+        return {"impl": self.name, "templates": self.templates, "switch_prob": self.switch_prob}
+
+
+def load_strategy_model(path: str) -> tuple[Optional[Model], list[str], str]:
+    """(model, templates, message). The model's own template list defines its feature spec; the
+    spec must also match this code's context features."""
+    from ..learn.features import strategy_spec
+    cands = [path] + [os.path.join(str(d), os.path.basename(path)) for d in model_search_dirs()]
+    for p in cands:
+        if not os.path.isfile(p):
+            continue
+        try:
+            m = load_model(p)
+            templates = list(m.meta.get("templates", m.labels))
+            want = strategy_spec(templates)
+            if m.spec is None or (m.spec.name, m.spec.version, m.spec.hash) != (want.name, want.version, want.hash):
+                raise FeatureMismatch(f"features {m.spec and m.spec.name} != {want.name} v{want.version}")
+            return m, templates, f"loaded {p}"
+        except (FeatureMismatch, KeyError, ValueError, OSError) as e:
+            return None, [], f"rejected {p}: {e}"
+    return None, [], f"not found: {path}"
+
+
+@register("LearnedStrategy")
+class LearnedStrategy(TemplateStrategy):
+    """Win probability per template from `strategy.npz`. Re-decides at game start (meta-only
+    context), every `period_s`, and on belief events. `select`: follow the best template unless it
+    beats the current one by less than `margin`. `blend`: goal = templates weighted by
+    softmax(p / temperature) (weights below `min_weight` dropped); the opening comes from the top.
+    `epsilon` > 0 explores a random template at a decision. Without a usable model it runs the
+    `RuleSelector` rules."""
+
+    def __init__(self, model: str = "strategy.npz", mode: str = "select", period_s: int = 45, margin: float = 0.03,
+                 temperature: float = 0.05, min_weight: float = 0.15, epsilon: float = 0.0,
+                 templates: Optional[Sequence[str]] = None, seed: Optional[int] = None) -> None:
+        super().__init__()
+        if mode not in ("select", "blend"):
+            raise ValueError(f"mode must be select|blend, got {mode!r}")
+        self.model_path, self.mode = model, mode
+        self.period = period_s * 24
+        self.margin, self.temperature, self.min_weight = margin, temperature, min_weight
+        self.epsilon, self.seed = epsilon, seed
+        self.only = list(templates) if templates else None
+        self.rules = RuleSelector()
+        self.model: Optional[Model] = None
+        self.model_templates: list[str] = []
+        self.message = ""
+
+    def on_start(self, bb: Blackboard) -> None:
+        super().on_start(bb)
+        self.rules.on_start(bb)
+        self.rng = _rng(self.seed)
+        self.model, self.model_templates, self.message = load_strategy_model(self.model_path)
+        race = int(bb.game.self_race)
+        usable = race_templates(race, self.model_templates) if self.model_templates else []
+        if self.only:
+            usable = [t for t in usable if t in self.only]
+        self.idx = [self.model_templates.index(t) for t in usable]
+        self.pool = usable
+        if self.model is None or not usable:
+            log.warning("LearnedStrategy: %s; using rules", self.message or "no usable templates")
+            self.model = None
+        else:
+            log.info("LearnedStrategy: %s (%s, %d templates)", self.message, self.mode, len(usable))
+        self._last = -10 ** 9
+
+    def predict(self, bb: Blackboard) -> dict[str, float]:
+        from ..learn.features import strategy_inputs
+        X = strategy_inputs(self.context(bb), len(self.model_templates))
+        p = np.atleast_1d(self.model.predict(X[self.idx]))
+        return {t: float(v) for t, v in zip(self.pool, p)}
+
+    def _due(self, bb: Blackboard) -> bool:
+        return self.current is None or bb.frame - self._last >= self.period or \
+            any(e in bb.events for e in REDECIDE_EVENTS)
+
+    def choose(self, bb: Blackboard) -> Optional[Choice]:
+        if self.model is None:
+            return self.rules.rule(bb)
+        if not self._due(bb):
+            return None
+        self._last = bb.frame
+        probs = self.predict(bb)
+        self.values = probs
+        if self.epsilon > 0 and self.rng.random() < self.epsilon:
+            pick = self.rng.choice(self.pool)
+            bb.record("strategy", "explore", pick=pick, probs=probs)
+            return pick
+        best = max(probs, key=probs.get)
+        cur = self.current.name if self.current is not None else None
+        if self.mode == "select":
+            if cur in probs and best != cur and probs[best] < probs[cur] + self.margin:
+                return cur
+            return best
+        z = np.array([probs[t] for t in self.pool]) / max(self.temperature, 1e-6)
+        w = np.exp(z - z.max())
+        w /= w.sum()
+        weights = {t: float(v) for t, v in zip(self.pool, w) if v >= self.min_weight}
+        if cur in weights and best != cur and probs[best] < probs[cur] + self.margin:
+            weights[cur] = max(weights.values()) + 1e-3        # keep the current template on top
+        return weights
+
+    def describe(self) -> dict:
+        return {"impl": self.name, "model": self.model_path, "mode": self.mode, "epsilon": self.epsilon,
+                "loaded": self.model is not None, "message": self.message}

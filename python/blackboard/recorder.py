@@ -77,6 +77,13 @@ class Recorder:
         self._write({"t": "header", "v": FORMAT_VERSION, "game_id": self.game_id, "side": side,
                      "time": time.strftime("%Y-%m-%dT%H:%M:%S"), **header})
 
+    def due(self, slot: str, kind: str, frame: int, every: int) -> bool:
+        """Would `record(..., every=every)` write now? (Lets callers skip building expensive rows.)"""
+        if self._fh is None:
+            return False
+        last = self._last.get((slot, kind))
+        return every <= 0 or last is None or frame - last >= every
+
     def record(self, slot: str, kind: str, frame: int, every: int = 0, **data: Any) -> bool:
         """Write a row; with `every` > 0, at most one row per (slot, kind) per `every` frames."""
         if self._fh is None:
