@@ -156,9 +156,12 @@ class Goal:
     bases: int = 1
 
 
+STANCES = ("defend", "hold", "contain", "attack", "all_in")
+
+
 @dataclass
 class Posture:
-    stance: str = "hold"                    # defend | hold | contain | attack | all_in
+    stance: str = "hold"                    # one of STANCES
     attack_supply: int = 40                 # army supply to start a push
     retreat_supply: int = 12
     harass: bool = False

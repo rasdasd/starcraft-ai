@@ -70,6 +70,54 @@ def get(name: str) -> Template:
     return TEMPLATES[name]
 
 
+def validate_goal(goal: Goal, tree, race: int) -> list[str]:
+    """Contract for Goal: units are trainable non-buildings of our race, buildings are non-addon
+    buildings, addons are addons, upgrade levels exist, techs exist, counts are non-negative."""
+    errs = []
+    name = tree.game.type_name
+
+    def ours(t: int) -> bool:
+        return tree.known_unit(t) and tree.race(t) == race
+
+    for t, n in goal.units.items():
+        if not ours(t) or tree.is_building(t):
+            errs.append(f"units: {name(t)} is not a {race} unit")
+        if n < 0:
+            errs.append(f"units: negative count for {name(t)}")
+    for t, n in goal.buildings.items():
+        if not ours(t) or not tree.is_building(t) or tree.is_addon(t):
+            errs.append(f"buildings: {name(t)} is not a buildable structure")
+        if n < 0:
+            errs.append(f"buildings: negative count for {name(t)}")
+    for t, n in goal.addons.items():
+        if not ours(t) or not tree.is_addon(t):
+            errs.append(f"addons: {name(t)} is not an addon")
+    for u, lvl in goal.upgrades:
+        if not 1 <= lvl <= tree.max_level(u):
+            errs.append(f"upgrades: {u} level {lvl} out of range")
+    for t in goal.techs:
+        if t not in tree.techs:
+            errs.append(f"techs: unknown tech {t}")
+    if goal.workers < 0 or goal.bases < 1:
+        errs.append("workers must be >= 0 and bases >= 1")
+    return errs
+
+
+def validate_template(t: Template, tree) -> list[str]:
+    """Static checks: opening steps are buildings of the template's race with non-decreasing supply."""
+    errs = []
+    last = 0
+    for supply, ut in t.opening_steps():
+        if not tree.known_unit(ut) or tree.race(ut) != t.race:
+            errs.append(f"opening: {ut} is not a {t.race} type")
+        if supply < last:
+            errs.append(f"opening: supply {supply} after {last}")
+        last = supply
+    if t.retreat_supply > t.attack_supply:
+        errs.append("retreat_supply > attack_supply")
+    return errs
+
+
 def blend_goals(goals: Sequence[Goal], weights: Sequence[float]) -> Goal:
     """Weighted mix of goals: counts are rounded weighted means; upgrade/tech order follows the
     heaviest template, with others' items appended."""
