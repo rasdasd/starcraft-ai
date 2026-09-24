@@ -44,8 +44,16 @@ BUILTINS: dict[str, dict] = {
     # belief training data: full map information -> `truth`, hidden again by Perception's fog filter
     "truth": {"base": "explore", "name": "truth", "config": {"complete_map_information": True},
               "slots": {"belief_log": {"impl": "BeliefLog"}}},
+    # combat training data: random tactics options 15% of the time (fight rows are always logged)
+    "explore_combat": {"base": "planned", "name": "explore_combat", "slots": {
+        "tactics": {"impl": "LearnedTactics", "epsilon": 0.15}}},
+    "learned_combat": {"base": "planned", "name": "learned_combat", "slots": {
+        "engagement": {"impl": "LearnedEngagement"},
+        "tactics": {"impl": "LearnedTactics"}}},
     "learned": {"base": "planned", "name": "learned", "slots": {
         "belief": {"impl": "LearnedBelief"},
+        "engagement": {"impl": "LearnedEngagement"},
+        "tactics": {"impl": "LearnedTactics"},
         "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "select", "epsilon": 0.05}}},
     "blend": {"base": "planned", "name": "blend", "slots": {
         "strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "blend"}}},

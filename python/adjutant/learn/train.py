@@ -1,6 +1,8 @@
 """Train learned components from recorder logs.
 
     python -m adjutant.learn.train strategy --logs runs/explore1 runs/explore2 --out models/strategy.npz
+    python -m adjutant.learn.train engage   --logs runs/... --out models/engage.npz
+    python -m adjutant.learn.train tactics  --logs runs/... --out models/tactics.npz
 
 strategy: every `strategy/ctx` row (context + active template) is one sample labelled with the
 game result; each game's rows share weight 1 so long games do not dominate, and the validation
@@ -104,7 +106,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--epochs", type=int, default=200)
     s.add_argument("--l2", type=float, default=1e-4)
     s.add_argument("--seed", type=int, default=0)
+    s = sub.add_parser("engage", help="engagement predictor (win probability) from engagement/fight rows")
+    s.add_argument("--logs", nargs="+", required=True)
+    s.add_argument("--out", default="models/engage.npz")
+    s.add_argument("--hidden", type=int, nargs="*", default=[16])
+    s.add_argument("--epochs", type=int, default=300)
+    s.add_argument("--l2", type=float, default=1e-3)
+    s.add_argument("--seed", type=int, default=0)
+    s = sub.add_parser("tactics", help="tactics value model from tactics/decision rows")
+    s.add_argument("--logs", nargs="+", required=True)
+    s.add_argument("--out", default="models/tactics.npz")
+    s.add_argument("--horizon", type=int, default=45, help="seconds of value trade per decision")
+    s.add_argument("--win-weight", type=float, default=0.3, help="weight of the game result in the target")
+    s.add_argument("--hidden", type=int, nargs="*", default=[32])
+    s.add_argument("--epochs", type=int, default=300)
+    s.add_argument("--l2", type=float, default=1e-3)
+    s.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
+    if args.what in ("engage", "tactics"):
+        from .combat import train_engage, train_tactics
+        return (train_engage if args.what == "engage" else train_tactics)(args)
     if args.what == "strategy":
         return train_strategy(args)
     if args.what == "belief":

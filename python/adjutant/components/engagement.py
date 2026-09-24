@@ -11,6 +11,8 @@ row with the losses on both sides. The learned engagement predictor trains on th
 """
 from __future__ import annotations
 
+import dataclasses
+import logging
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -24,6 +26,9 @@ from bwbot.enums import UnitType as U
 from bwbot.observation import UnitFlag
 
 from .. import engage as E
+from ..learn.combat import ENGAGE_SPEC, engage_features
+
+log = logging.getLogger("adjutant.engagement")
 
 FPS = 24
 
@@ -115,6 +120,7 @@ class LanchesterEngagement(Component):
         self.own_table = E.TypeTable(bb.game)
         self.enemy_table = E.TypeTable(bb.game)
         self.fights = FightLog(quiet_frames=self.quiet_s * FPS)
+        self.ctx: dict = {"frame": 0, "b_army": 0.0, "own_army": 0.0}
         bb.services["engage"] = self
 
     # ------------------------------------------------------------------ evaluator API (for tactics)
@@ -149,6 +155,7 @@ class LanchesterEngagement(Component):
         for e in obs.iter_events(EventType.UnitDestroy):
             self.fights.destroyed(int(e.unit))
 
+        self.ctx = {"frame": frame, "b_army": float(b.army_supply), "own_army": float(w.army_supply)}
         enemies = self._enemies(obs, b, frame)
         comsat = any(int(u["type"]) == int(U.Terran_Comsat_Station) and int(u["energy"]) >= 50
                      for u in w.buildings) if len(w.buildings) else False
@@ -226,7 +233,9 @@ class LanchesterEngagement(Component):
         return out
 
     def _snapshot(self, bb: Blackboard, own: E.Side, enemy: E.Side, est: E.Estimate) -> dict:
+        lanchester = E.evaluate(own, enemy, self.sharpness)
         return dict(
+            x=[round(float(v), 4) for v in engage_features(own, enemy, lanchester, self.ctx)], fh=ENGAGE_SPEC.hash,
             own={str(k): v for k, v in own.composition().items()},
             enemy={str(k): v for k, v in enemy.composition().items()},
             own_hp=round(own.hp), enemy_hp=round(enemy.hp), own_value=own.value, enemy_value=enemy.value,
@@ -250,3 +259,32 @@ class LanchesterEngagement(Component):
     def describe(self) -> dict:
         return {"impl": self.name, "sharpness": self.sharpness, "cluster_px": self.cluster_px,
                 "reach_px": self.reach_px}
+
+
+@register("LearnedEngagement")
+class LearnedEngagement(LanchesterEngagement):
+    """Lanchester sides and estimate, with the win probability from `engage.npz` (trained on fight
+    rows). `weight` blends model and Lanchester; with no model it is exactly LanchesterEngagement."""
+
+    def __init__(self, model: str = "engage.npz", weight: float = 1.0, **kw) -> None:
+        super().__init__(**kw)
+        self.model_path = model
+        self.weight = weight
+        self.model = None
+        self.message = ""
+
+    def on_start(self, bb: Blackboard) -> None:
+        super().on_start(bb)
+        from blackboard.models import model_search_dirs, try_load
+        self.model, self.message = try_load(self.model_path, ENGAGE_SPEC, search=model_search_dirs())
+        log.info("LearnedEngagement: %s", self.message)
+
+    def evaluate(self, own: E.Side, enemy: E.Side) -> E.Estimate:
+        est = E.evaluate(own, enemy, self.sharpness)
+        if self.model is None or len(own) == 0 or len(enemy) == 0:
+            return est
+        p = float(self.model.predict(engage_features(own, enemy, est, self.ctx)))
+        return dataclasses.replace(est, win_prob=self.weight * p + (1 - self.weight) * est.win_prob)
+
+    def describe(self) -> dict:
+        return {**super().describe(), "model": self.message, "weight": self.weight}

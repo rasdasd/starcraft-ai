@@ -21,13 +21,16 @@ import numpy as np
 from blackboard import Blackboard, Component, Phase, Priority
 from blackboard.profile import register
 from blackboard.sections import Squad, SquadOrder
-from bwbot import Race, UnitType as U
+from bwbot import EventType, Race, UnitType as U
 from bwbot.observation import UnitFlag, UnitTypeFlag
 
 from .. import engage as E
+from ..learn.combat import OPTIONS, TACTICS_SPEC, tactics_features
 from .engagement import _Enemy
 
 FPS = 24
+OPTION_OF = {"attack": "attack", "gather": "attack", "contain": "contain", "retreat": "retreat",
+             "hold": "hold", "defend": "hold"}
 NOT_SQUAD = {int(U.Terran_Vulture_Spider_Mine), int(U.Protoss_Interceptor), int(U.Protoss_Scarab),
              int(U.Zerg_Larva), int(U.Zerg_Egg), int(U.Zerg_Overlord)}
 SUPPORT = {int(U.Terran_Medic), int(U.Terran_Science_Vessel), int(U.Protoss_Observer), int(U.Zerg_Defiler)}
@@ -52,7 +55,8 @@ class Tactics(Component):
     def __init__(self, defend_radius_tiles: int = 22, retreat_prob: float = 0.35, resume_prob: float = 0.6,
                  retreat_s: int = 12, regroup_frac: float = 0.6, harass_max: int = 4, repair_hp: float = 0.35,
                  repaired_hp: float = 0.85, min_push: int = 3, defend_win: float = 0.85,
-                 executor: str = "micro") -> None:
+                 executor: str = "micro", log_s: int = 5) -> None:
+        self.log_frames = log_s * FPS
         self.defend_px = defend_radius_tiles * 32
         self.retreat_prob = retreat_prob
         self.resume_prob = resume_prob
@@ -70,13 +74,22 @@ class Tactics(Component):
         self.retreat_until = -1
         self.repairing: set[int] = set()
         self.nat_exit = self._natural_exit(bb.game)
+        self.table = E.TypeTable(bb.game)
+        self.types: dict[int, tuple[int, bool]] = {}      # id -> (type, ours)
+        self.lost = [0.0, 0.0]                           # value lost: ours, theirs
+        self.last_log = -10 ** 9
+        self.option: Optional[str] = None
+        self._enemy_cache: tuple[int, list] = (-1, [])
 
     # ------------------------------------------------------------------ tick
     def tick(self, bb: Blackboard) -> None:
         w, b, st = bb.world, bb.belief, bb.strategy
         frame = bb.frame
+        self._track_losses(bb)
         units = self._available(bb)
         squads: dict[str, Squad] = {}
+        self.option = None
+        self.option_point: Optional[tuple[int, int]] = None
         if len(units) == 0:
             bb.squads.squads = squads
             bb.squads.army_order = None
@@ -105,10 +118,78 @@ class Tactics(Component):
 
         rest = units[~np.isin(units["id"], list(taken))] if taken else units
         if len(rest):
-            squads["main"] = Squad("main", {int(u["id"]) for u in rest}, self._main_order(bb, rest, frame),
-                                   self.priority)
+            order = self._main_order(bb, rest, frame)
+            squads["main"] = Squad("main", {int(u["id"]) for u in rest}, order, self.priority)
+            if self.option is None:
+                self.option = OPTION_OF.get(order.kind)
+            if self.option is not None and frame - self.last_log >= self.log_frames:
+                self.last_log = frame
+                self._log_decision(bb, rest, order)
         bb.squads.squads = squads
         bb.squads.army_order = None
+
+    def on_end(self, bb: Blackboard, won: bool) -> None:
+        bb.record("tactics", "final", lost=[round(v) for v in self.lost])
+
+    # ------------------------------------------------------------------ decision logging (tactics value model)
+    def _track_losses(self, bb: Blackboard) -> None:
+        obs = bb.obs
+        for e in obs.iter_events(EventType.UnitDestroy):
+            t = self.types.pop(int(e.unit), None)
+            if t is not None:
+                self.lost[0 if t[1] else 1] += self.table.get(t[0]).value
+        mine, theirs = obs.my_units, obs.enemy_units
+        if len(mine):
+            self.types.update(zip(mine["id"].tolist(), zip(mine["type"].tolist(), [True] * len(mine))))
+        if len(theirs):
+            self.types.update(zip(theirs["id"].tolist(), zip(theirs["type"].tolist(), [False] * len(theirs))))
+
+    def _known_enemies(self, bb: Blackboard) -> list:
+        if self._enemy_cache[0] != bb.frame:
+            ev = bb.services.get("engage")
+            self._enemy_cache = (bb.frame, ev._enemies(bb.obs, bb.belief, bb.frame) if ev is not None else [])
+        return self._enemy_cache[1]
+
+    def _context(self, bb: Blackboard, rows) -> dict:
+        w, b, g = bb.world, bb.belief, bb.game
+        n = max(1, len(rows))
+        tanks = sum(1 for u in rows if int(u["type"]) in (int(U.Terran_Siege_Tank_Tank_Mode),
+                                                          int(U.Terran_Siege_Tank_Siege_Mode)))
+        air = sum(1 for u in rows if _is_flyer(bb, u))
+        stance = bb.strategy.posture.stance
+        if bb.threats.posture_override and bb.frame <= bb.threats.override_until:
+            stance = bb.threats.posture_override
+        return {"frame": bb.frame, "own_army": float(w.army_supply), "b_army": float(b.army_supply),
+                "global_p": float(bb.engagements.global_win_prob), "global_ratio": float(bb.engagements.global_ratio),
+                "own_bases": len(w.depots), "enemy_bases": sum(1 for e in b.bases if e.alive),
+                "workers": len(w.workers), "threat": float(bb.threats.level), "tank_frac": tanks / n,
+                "air_frac": air / n, "stance": stance, "map_diag": math.hypot(g.map_width * 32, g.map_height * 32)}
+
+    def _target_info(self, bb: Blackboard, rows, point) -> dict:
+        ev = bb.services.get("engage")
+        c = _center(rows)
+        near = [e for e in self._known_enemies(bb) if _d2((e.x, e.y), point) <= (12 * 32) ** 2]
+        p, value, static = 1.0, 0.0, 0.0
+        if ev is not None and near:
+            enemy = ev.enemy_side(near)
+            p = ev.evaluate(ev.own_side(list(rows)), enemy).win_prob
+            value = enemy.value
+            static = sum(m.info.value for m in enemy.members if m.info.building)
+        return {"dist": math.sqrt(_d2(c, point)), "p": float(p), "value": float(value), "static": float(static)}
+
+    def _log_decision(self, bb: Blackboard, rows, order: SquadOrder) -> None:
+        point = self.option_point
+        if point is None:
+            point = (order.x, order.y)
+            if order.kind == "gather":
+                point = self._attack_target(bb, _center(rows)) or point
+        x = tactics_features(self._context(bb, rows), self.option, self._target_info(bb, rows, point))
+        own_value = sum(self.table.get(int(u["type"])).value for u in rows)
+        bb.record("tactics", "decision", opt=self.option, order=order.kind, x=[round(float(v), 4) for v in x],
+                  fh=TACTICS_SPEC.hash, lost=[round(v) for v in self.lost], value=round(own_value),
+                  learned=self.learned_choice)
+
+    learned_choice = False
 
     # ------------------------------------------------------------------ squads
     def _available(self, bb: Blackboard):
@@ -379,6 +460,132 @@ class Tactics(Component):
 
     def describe(self) -> dict:
         return {"impl": self.name, "retreat_prob": self.retreat_prob, "resume_prob": self.resume_prob}
+
+
+@register("LearnedTactics")
+class LearnedTactics(Tactics):
+    """Tactics whose main-squad order is picked by a value model (`tactics.npz`) over the options
+    hold / contain / attack (nearest target) / attack_base (weakest known enemy base) / retreat.
+
+    Options are re-scored every `eval_s`. The scripted order stays unless the best option scores
+    `margin` above it; an override is kept for `hold_s` (dropped early when the engaged cluster is
+    losing). Crisis overrides and anti-air hunts always use the scripted order. With probability
+    `epsilon` per evaluation a random option is played for `explore_s` (logged, for training). With
+    no model and epsilon 0 it is exactly Tactics.
+    """
+
+    def __init__(self, model: str = "tactics.npz", epsilon: float = 0.0, margin: float = 0.05,
+                 hold_s: int = 15, explore_s: int = 20, eval_s: int = 2, seed: Optional[int] = None,
+                 **kw) -> None:
+        super().__init__(**kw)
+        self.model_path = model
+        self.eval_frames = eval_s * FPS
+        self.epsilon = epsilon
+        self.margin = margin
+        self.hold_frames = hold_s * FPS
+        self.explore_frames = explore_s * FPS
+        self.rng = np.random.default_rng(seed)
+        self.model = None
+        self.message = ""
+
+    def on_start(self, bb: Blackboard) -> None:
+        super().on_start(bb)
+        from blackboard.models import model_search_dirs, try_load
+        self.model, self.message = try_load(self.model_path, TACTICS_SPEC, search=model_search_dirs())
+        self.choice: Optional[str] = None
+        self.choice_until = -1
+        self.next_eval = 0
+        self.cached: dict = {}
+        self.scores: dict[str, float] = {}
+
+    def _main_order(self, bb: Blackboard, rows, frame: int) -> SquadOrder:
+        scripted = super()._main_order(bb, rows, frame)
+        self.learned_choice = False
+        override = bb.threats.posture_override and frame <= bb.threats.override_until
+        if scripted.kind == "hunt_air" or override or (self.model is None and self.epsilon <= 0):
+            self.choice = None
+            return scripted
+        if self.choice in ("attack", "attack_base", "contain"):
+            eng = self._engagement_for(bb, {int(u["id"]) for u in rows})
+            if eng is not None and eng.contact and eng.win_prob < self.retreat_prob:
+                self.choice, self.choice_until = None, -1
+                self.retreat_until = frame + self.retreat_frames
+                return SquadOrder("retreat", *self._hold_point(bb))
+        fresh = frame >= self.next_eval
+        if fresh:
+            self.next_eval = frame + self.eval_frames
+            self.cached = self._options(bb, rows)
+        options = self.cached
+        if self.choice is not None and frame < self.choice_until and self.choice in options:
+            return self._take(bb, rows, self.choice, options)
+        if not fresh:
+            return scripted
+        base = OPTION_OF.get(scripted.kind, "hold")
+        if self.epsilon > 0 and self.rng.random() < self.epsilon:
+            pick = str(self.rng.choice(sorted(options)))
+            self.choice, self.choice_until = pick, frame + self.explore_frames
+            return self._take(bb, rows, pick, options)
+        if self.model is None:
+            self.choice = None
+            return scripted
+        ctx = self._context(bb, rows)
+        names = sorted(options)
+        X = np.stack([tactics_features(ctx, o, options[o][1]) for o in names])
+        vals = np.atleast_1d(self.model.predict(X)).reshape(len(names), -1)[:, 0]
+        self.scores = {o: float(v) for o, v in zip(names, vals)}
+        best = max(names, key=lambda o: self.scores[o])
+        if base in self.scores and self.scores[best] - self.scores[base] < self.margin:
+            best = base
+        if best == base:
+            self.choice = None
+            return scripted
+        self.choice, self.choice_until = best, frame + self.hold_frames
+        return self._take(bb, rows, best, options)
+
+    def _take(self, bb: Blackboard, rows, option: str, options: dict) -> SquadOrder:
+        self.option = option
+        self.learned_choice = True
+        order = options[option][0]
+        self.option_point = (order.x, order.y)
+        if option in ("attack", "attack_base"):
+            self.pushing = True
+            groups = E.cluster(E.unit_positions(rows), 8 * 32)
+            biggest = rows[groups[0]]
+            eng = self._engagement_for(bb, {int(u["id"]) for u in rows})
+            if len(biggest) < self.regroup_frac * len(rows) and not (eng is not None and eng.contact):
+                cx, cy = _center(biggest)
+                return SquadOrder("gather", cx, cy)
+        else:
+            self.pushing = False
+        return order
+
+    def _options(self, bb: Blackboard, rows) -> dict[str, tuple[SquadOrder, dict]]:
+        hold = self._hold_point(bb)
+        at_hold = self._target_info(bb, rows, hold)
+        out = {"hold": (SquadOrder("hold", hold[0], hold[1]), at_hold),
+               "retreat": (SquadOrder("retreat", hold[0], hold[1]), at_hold)}
+        c = self._contain_point(bb)
+        if c is not None:
+            out["contain"] = (SquadOrder("contain", c[0], c[1]), self._target_info(bb, rows, c))
+        tgt = self._attack_target(bb, _center(rows))
+        if tgt is not None:
+            out["attack"] = (SquadOrder("attack", tgt[0], tgt[1]), self._target_info(bb, rows, tgt))
+        best = None
+        for e in bb.belief.bases:
+            if not e.alive:
+                continue
+            base = bb.game.base(e.base_id)
+            p = tuple(base.center) if base is not None else (e.tile[0] * 32 + 64, e.tile[1] * 32 + 48)
+            info = self._target_info(bb, rows, p)
+            if best is None or (info["p"], -info["dist"]) > (best[1]["p"], -best[1]["dist"]):
+                best = (p, info)
+        if best is not None:
+            out["attack_base"] = (SquadOrder("attack", best[0][0], best[0][1]), best[1])
+        assert set(out) <= set(OPTIONS)
+        return out
+
+    def describe(self) -> dict:
+        return {**super().describe(), "model": self.message, "epsilon": self.epsilon, "margin": self.margin}
 
 
 def _as_enemy(u) -> _Enemy:
