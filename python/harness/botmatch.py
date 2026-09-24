@@ -117,7 +117,7 @@ def prepare_instance(inst: Path, bwapi_dll: Path, ai_files: list[Path]) -> None:
         shutil.copytree(GAME / "bwapi-data" / "data", bd / "data")
     if (bd / "AI").exists():
         shutil.rmtree(bd / "AI")
-    for sub in ("AI", "read", "write", "logs", "BWTA", "BWTA2"):
+    for sub in ("AI", "read", "write", "logs", "BWTA", "BWTA2", "replays"):
         (bd / sub).mkdir(parents=True, exist_ok=True)
     shutil.copy2(bwapi_dll, bd / "BWAPI.dll")
     for f in ai_files:
@@ -258,7 +258,8 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
     ai_files = [p for p in (bot_dir / "AI").iterdir()]
     prepare_instance(inst_b, bot_dir / "BWAPI.dll", ai_files)
     client = meta["botType"] != "AI_MODULE"
-    replay = str(gdir / "replay.rep") if args.replays else ""
+    game_id = f"{run_id}-g{index:04d}"
+    replay = f"bwapi-data/replays/{game_id}.rep" if args.replays else ""
     (inst_a / "bwapi-data" / "bwapi.ini").write_text(
         bwapi_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", me.name, map_path, True, replay, 20),
         encoding="utf-8")
@@ -266,7 +267,6 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         bwapi_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"), meta["name"],
                   map_path, False, "", 680), encoding="utf-8")
     _no_tips()
-    game_id = f"{run_id}-g{index:04d}"
     port = args.port
     env_a = dict(os.environ, BWBOT_PORT=str(port), BWBOT_HOST="127.0.0.1", BWBOT_NO_SPAWN="1")
     logs = []
@@ -305,6 +305,8 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         install_path(prev_install)
         for fh in logs:
             fh.close()
+        if replay and (inst_a / replay).is_file():
+            shutil.move(str(inst_a / replay), str(gdir / "replay.rep"))
     a = {"name": me.name, "spec": me.spec, "profile": me.profile, "race": me.race}
     ra = None
     if (gdir / "result_a.json").is_file():

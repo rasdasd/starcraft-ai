@@ -216,6 +216,10 @@ log (`logs/adjutant/`, or `bwapi-data/write/adjutant-logs/` in tournaments) that
 Models are numpy `.npz` files (no torch at inference), looked up in `bwapi-data/read/`, the
 competition pack's `AI/models/`, then `python/models/`. Tests: `cd python; .venv\Scripts\python -m pytest`.
 
+Many games unattended: `harness.selfplay` (parallel headless OpenBW games in WSL, Python bots
+including Zerg/Protoss sparring bots) and `harness.botmatch` (native Windows StarCraft against
+published SSCAIT bots). See [docs/harness.md](docs/harness.md).
+
 ## Protocol
 
 Defined in `proto/bw.fbs`; regenerate with `scripts/gen_proto.ps1` (Windows) or `scripts/gen_proto.sh`
