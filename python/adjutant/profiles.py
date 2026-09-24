@@ -8,6 +8,7 @@ PARITY = {
     "name": "parity",
     "slots": {
         "perception": {"impl": "Perception"},
+        "meta": {"impl": "MetaAnalysis"},
         "belief": {"impl": "LegacyBelief"},
         "strategy": {"impl": "ScriptedStrategy", "template": "goliath_1fact"},
         "production": {"impl": "LegacyPolicyPlanner", "policy": "goliath"},

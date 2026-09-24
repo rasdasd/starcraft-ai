@@ -46,6 +46,7 @@ class BlackboardBot(Bot):
             "bot": self.name, "map": game.map_name, "map_hash": game.map_hash, "seed": game.random_seed,
             "self_race": int(game.self_player.race), "enemy_race": int(enemies[0].race) if enemies else -1,
             "enemy_name": enemies[0].name if enemies else "", "slots": slots, "config": cfg,
+            "meta": dict(self.bb.meta.features),
         })
         log.info("%s start: map=%s game=%s slots=%s", self.name, game.map_name, self.recorder.game_id,
                  ", ".join(f"{k}={v.get('impl')}" for k, v in slots.items()))
