@@ -24,11 +24,30 @@ from .. import compat
 
 
 class SpreadProductionManager(ProductionManager):
-    """Trains on a different idle producer for each Train intent in the same decision."""
+    """Trains on a different idle producer for each Train intent in the same decision, and allows
+    several addons of one type (`addon_targets[type]` = wanted total; default 1)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.addon_targets: dict[int, int] = {}
 
     def update(self, s, act, buildings) -> None:
         self._used: set[int] = set()
         super().update(s, act, buildings)
+
+    def _addon(self, unit_type, s, act, budget) -> None:
+        unit_type = int(unit_type)
+        if not budget.can_afford(s.game, unit_type) or s.count(unit_type) >= self.addon_targets.get(unit_type, 1):
+            return
+        parent_type = int(s.game.unit_types["what_builds"][unit_type])
+        for parent in s.obs.my_completed(parent_type):
+            if (int(parent["addon"]) >= 0 or (int(parent["flags"]) & int(UnitFlag.Lifted))
+                    or int(parent["id"]) in self._used or int(parent["train_queue_count"]) > 0):
+                continue
+            act.build_addon(parent, unit_type)
+            self._used.add(int(parent["id"]))
+            budget.spend(s.game, unit_type)
+            return
 
     def _train(self, unit_type, s, act, budget) -> None:
         if not budget.can_afford(s.game, unit_type):
@@ -86,9 +105,11 @@ class Construction(Component):
         wm = compat.worker_manager(bb)
         plan = bb.plan
         intents = []
+        if isinstance(self.production, SpreadProductionManager):
+            self.production.addon_targets = {it.type_id: max(1, it.count) for it in plan.items if it.kind == "addon"}
         for it in plan.items:
             if it.kind == "build":
-                self.production.ensure_build(it.type_id, self.buildings, front=it.priority >= Priority.CRISIS,
+                self.production.ensure_build(it.type_id, self.buildings, front=it.priority >= Priority.SUPPLY,
                                              near=it.near, exact=it.exact)
             elif it.kind == "train":
                 intents += [Train(it.type_id)] * max(1, it.count)

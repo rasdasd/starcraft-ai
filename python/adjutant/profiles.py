@@ -24,4 +24,10 @@ PARITY = {
 BUILTINS: dict[str, dict] = {
     "parity": PARITY,
     "adjutant": {"base": "parity", "name": "adjutant"},
+    # strategy goal -> greedy tech-tree planner (instead of the goliath policy's own build order)
+    "planned": {"base": "parity", "name": "planned", "slots": {
+        "strategy": {"impl": "ScriptedStrategy", "template": "mech_expand"},
+        "production": {"impl": "GreedyPlanner"},
+        "repair": {"impl": "Repair"},
+    }},
 }
