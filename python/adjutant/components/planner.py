@@ -123,6 +123,10 @@ class GreedyPlanner(Component):
                 add("build", supply_t, P_SUPPLY, "supply")
                 notes.append("supply")
 
+        # 1b. requests from other slots (crisis: bunker / turret / comsat, cancel an expansion)
+        cancels = self._requests(bb, tree, add, worker)
+        cancel_hall = hall is not None and hall in cancels
+
         # 2. opening
         opening = not st.opening_done and st.opening_next is not None
         if opening:
@@ -166,13 +170,16 @@ class GreedyPlanner(Component):
             # 4b. too little army for the game time / the enemy we know about: units before
             # expansions and tech (and before their money is reserved)
             need = self.min_army(bb)
-            if w.army_supply < need:
-                self._army(bb, tree, goal, add, reserve, worker, held, prio=P_ARMY_URGENT)
+            short = w.army_supply < need
+            if short:
+                severe = w.army_supply < 0.5 * need and need >= 8
+                self._army(bb, tree, goal, add, reserve, worker, held,
+                           prio=P_WORKER + 1 if severe else P_ARMY_URGENT)
                 notes.append(f"army {w.army_supply}<{need:.0f}")
 
             # 5. expansions
             bases_now = self.have(bb, hall) if hall is not None else 1
-            if hall is not None and goal.bases > bases_now:
+            if hall is not None and goal.bases > bases_now and not cancel_hall:
                 tile = self.next_base(bb)
                 if tile is not None:
                     add("build", hall, P_EXPAND, "expand", near=tile, exact=True)
@@ -186,6 +193,8 @@ class GreedyPlanner(Component):
                 if n <= self.have(bb, t) or not self._reqs_done(bb, tree, tree.unit_requires(t)):
                     continue
                 producer = any(int(tree.builder(u)) == t for u in goal.units)
+                if not producer and short:
+                    continue
                 add("build", t, P_BUILDING if producer else P_TECH, "goal")
 
             # 7. addons
@@ -195,7 +204,7 @@ class GreedyPlanner(Component):
                         add("addon", t, P_TECH, "goal", count=n, cost=tree.cost(t))
 
             # 8. upgrades / research
-            me = bb.obs.me if bb.obs is not None else None
+            me = bb.obs.me if bb.obs is not None and not short else None
             for u, lvl in goal.upgrades:
                 if me is None:
                     break
@@ -223,9 +232,42 @@ class GreedyPlanner(Component):
         plan.items = items
         plan.notes = notes
         plan.army_order = None
-        plan.cancel = []
+        plan.cancel = cancels
 
     # ------------------------------------------------------------------ pieces
+    def _requests(self, bb: Blackboard, tree: TechTree, add, worker) -> list[int]:
+        cancels: list[int] = []
+        for r in bb.requests.active("production"):
+            t = int(r.type_id)
+            if r.item == "cancel":
+                cancels.append(t)
+                continue
+            why = f"req:{r.source}"
+            if r.item in ("build", "addon", "train"):
+                if r.item != "train" and self.have(bb, t) >= r.count:
+                    continue
+                reqs = tree.unit_requires(t)
+                if not self._reqs_done(bb, tree, reqs):
+                    for p in tree.missing(reqs, lambda x: self.have(bb, x)):
+                        if p == worker or not tree.is_building(p) or tree.is_addon(p):
+                            continue
+                        if self._reqs_done(bb, tree, tree.unit_requires(p)):
+                            add("build", p, r.priority - 1, why + " prereq")
+                    continue
+                if r.item == "build":
+                    add("build", t, r.priority, why, near=r.near, exact=r.exact)
+                elif r.item == "addon":
+                    if self._free_parent(bb, tree, t):
+                        add("addon", t, r.priority, why, count=r.count, cost=tree.cost(t))
+                else:
+                    m, g = tree.cost(t)
+                    add("train", t, r.priority, why, count=r.count, cost=(m * r.count, g * r.count))
+            elif r.item == "upgrade":
+                add("upgrade", t, r.priority, why)
+            elif r.item == "research":
+                add("research", t, r.priority, why, cost=tree.tech_cost(t))
+        return cancels
+
     def _need_supply(self, bb: Blackboard, tree: TechTree, supply_t: int, hall: Optional[int]) -> bool:
         w = bb.world
         bm = bb.services.get("buildings")
@@ -270,22 +312,34 @@ class GreedyPlanner(Component):
             if not self._reqs_done(bb, tree, tree.unit_requires(t)):
                 continue
             by_producer.setdefault(tree.builder(t), []).append(t)
+        urgent = prio != P_ARMY
         counts: dict[int, int] = {}
         for producer, types in by_producer.items():
             slots = self.done(bb, producer) - held.get(producer, 0)
-            deficits = {t: goal.units[t] - self.have(bb, t) for t in types}
+            # short on army: keep producing the goal mix past its counts
+            deficits = {t: 10 ** 6 if urgent else goal.units[t] - self.have(bb, t) for t in types}
             for _ in range(slots):
                 open_ = [t for t in types if deficits[t] > 0]
-                if not open_:
+                open_.sort(key=lambda x: (self.have(bb, x) + counts.get(x, 0)) / max(1, goal.units[x]))
+                pick = None
+                for t in open_ if urgent else open_[:1]:
+                    m, g = tree.cost(t)
+                    if m <= minerals and g <= gas and tree.supply(t) <= supply:
+                        pick = t
+                        break
+                if pick is None:
                     break
-                t = min(open_, key=lambda x: (self.have(bb, x) + counts.get(x, 0)) / max(1, goal.units[x]))
-                m, g = tree.cost(t)
-                s = tree.supply(t)
-                if m > minerals or g > gas or s > supply:
-                    break
-                minerals, gas, supply = minerals - m, gas - g, supply - s
-                deficits[t] -= 1
-                counts[t] = counts.get(t, 0) + 1
+                m, g = tree.cost(pick)
+                minerals, gas, supply = minerals - m, gas - g, supply - tree.supply(pick)
+                deficits[pick] -= 1
+                counts[pick] = counts.get(pick, 0) + 1
+        if urgent and minerals >= 400 and by_producer:
+            # floating while short: another production building for the main army type
+            main = max(goal.units, key=lambda t: goal.units[t] * tree.supply(t) if t != worker else -1)
+            producer = tree.builder(main)
+            if producer != -1 and tree.is_building(producer) and not tree.is_addon(producer) \
+                    and self.have(bb, producer) - self.done(bb, producer) == 0:
+                add("build", producer, P_BUILDING, "min army producer")
         for t, n in counts.items():
             m, g = tree.cost(t)
             add("train", t, prio, "goal" if prio == P_ARMY else "min army", count=n, cost=(m * n, g * n))

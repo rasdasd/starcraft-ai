@@ -205,7 +205,9 @@ class Scouting(Component):
             self.want_attack_scan = True
         self.was_attacking = attacking
         comsats = obs.my_completed(U.Terran_Comsat_Station)
-        if len(comsats) == 0 or bb.frame - sc.last_scan_frame < 24 * 10:
+        req = next(iter(bb.requests.active("scan")), None)     # e.g. crisis: cloaked units in our base
+        cooldown = 24 * 8 if req is not None else 24 * 10
+        if len(comsats) == 0 or bb.frame - sc.last_scan_frame < cooldown:
             return
         best = comsats[int(np.argmax(comsats["energy"]))]
         energy = int(best["energy"])
@@ -213,8 +215,10 @@ class Scouting(Component):
             return
         target = None
         why = ""
+        if req is not None:
+            target, why = (req.x, req.y), f"request:{req.source}"
         es = bb.belief.enemy_start
-        if self.want_attack_scan and attacking and es is not None:
+        if target is None and self.want_attack_scan and attacking and es is not None:
             self.want_attack_scan = False
             base = min(bb.game.bases, key=lambda b: (b.tile[0] - es[0]) ** 2 + (b.tile[1] - es[1]) ** 2)
             if bb.belief.staleness.get(base.id, bb.frame) > 24 * 60:

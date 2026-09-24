@@ -9,7 +9,7 @@ from blackboard.profile import register
 @register("Snapshots")
 class Snapshots(Component):
     phase = Phase.REPORT
-    reads = ("world", "belief", "strategy", "squads", "truth")
+    reads = ("world", "belief", "strategy", "squads", "truth", "plan")
     period_frames = 24 * 10
 
     def tick(self, bb: Blackboard) -> None:
@@ -20,6 +20,9 @@ class Snapshots(Component):
             tmpl=st.template, stance=st.posture.stance,
             b_army=round(b.army_supply, 1), b_air=round(b.air, 1), b_open=b.opening,
             b_counts={str(k): round(v, 1) for k, v in b.counts.items() if v},
+            plan=[f"{it.kind}:{bb.game.type_name(it.type_id) if it.kind in ('build', 'addon', 'train') else it.type_id}"
+                  f"@{it.priority}" for it in bb.plan.items[:6]],
+            notes=list(bb.plan.notes)[:6],
         )
         t = bb.truth
         if t.enabled:

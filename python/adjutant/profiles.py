@@ -35,6 +35,8 @@ BUILTINS: dict[str, dict] = {
         "repair": {"impl": "Repair"},
         "tactics": {"impl": "Tactics"},
         "micro": {"impl": "Micro"},
+        "crisis": {"impl": "Crisis"},
+        "worker_defense": {"impl": "WorkerDefense"},
     }},
     "rules": {"base": "planned", "name": "rules", "slots": {"strategy": {"impl": "RuleSelector"}}},
     # data collection for the strategy win model

@@ -248,6 +248,10 @@ def evaluate(own: Side, enemy: Side, sharpness: float = 2.0) -> Estimate:
     ra, rb = damage_rate(own, enemy), damage_rate(enemy, own)
     ha, hb = own.hp, enemy.hp
     ea, eb = ra * ha, rb * hb
+    if ha <= 0 < hb:
+        return Estimate(ra, rb, ha, hb, 0.0, 0.0, 0.0, 1.0, 0.0)
+    if hb <= 0 < ha:
+        return Estimate(ra, rb, ha, hb, math.inf, 1.0, 1.0, 0.0, 0.0)
     if ea <= 0 and eb <= 0:
         return Estimate(ra, rb, ha, hb, 1.0, 0.5, 1.0 if ha else 0.0, 1.0 if hb else 0.0, 0.0)
     if eb <= 0:
