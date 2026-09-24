@@ -27,6 +27,7 @@ BUILTINS: dict[str, dict] = {
     "adjutant": {"base": "parity", "name": "adjutant"},
     # strategy goal -> greedy tech-tree planner (instead of the goliath policy's own build order)
     "planned": {"base": "parity", "name": "planned", "slots": {
+        "belief": {"impl": "ScriptedBelief"},
         "strategy": {"impl": "ScriptedStrategy", "template": "mech_expand"},
         "production": {"impl": "GreedyPlanner"},
         "repair": {"impl": "Repair"},
