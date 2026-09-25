@@ -3,6 +3,7 @@
     python -m adjutant.learn.train strategy --logs runs/explore1 runs/explore2 --out models/strategy.npz
     python -m adjutant.learn.train engage   --logs runs/... --out models/engage.npz
     python -m adjutant.learn.train tactics  --logs runs/... --out models/tactics.npz
+    python -m adjutant.learn.train micro    --logs runs/... --out models/micro.npz
 
 strategy: every `strategy/ctx` row (context + active template) is one sample labelled with the
 game result; each game's rows share weight 1 so long games do not dominate, and the validation
@@ -122,7 +123,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--epochs", type=int, default=300)
     s.add_argument("--l2", type=float, default=1e-3)
     s.add_argument("--seed", type=int, default=0)
+    s = sub.add_parser("micro", help="RLMicro Q model (fitted Q iteration) from micro/step transitions")
+    s.add_argument("--logs", nargs="+", required=True)
+    s.add_argument("--out", default="models/micro.npz")
+    s.add_argument("--gamma", type=float, default=0.8)
+    s.add_argument("--iters", type=int, default=4)
+    s.add_argument("--hidden", type=int, nargs="*", default=[32])
+    s.add_argument("--epochs", type=int, default=60)
+    s.add_argument("--l2", type=float, default=1e-4)
+    s.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
+    if args.what == "micro":
+        from .micro import train_micro
+        return train_micro(args)
     if args.what in ("engage", "tactics"):
         from .combat import train_engage, train_tactics
         return (train_engage if args.what == "engage" else train_tactics)(args)

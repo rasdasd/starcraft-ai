@@ -132,18 +132,7 @@ class Micro(Component):
         reach = max(_range(info.ground), _range(info.air)) + self.engage_px
         near = [i for i in np.nonzero(d2 <= reach * reach)[0] if self._can_hit(info, enemies[i])] if len(d2) else []
         if near:
-            if self.kite:
-                k = self._kite(u, info, enemies, near, d2, act, frame)
-                if k is not None:
-                    return k
-            if self.focus:
-                tgt = self._pick(u, info, enemies, near, d2, assigned, harass=o.kind == "harass")
-                if tgt is not None:
-                    tid = int(tgt["id"])
-                    if int(u["order_target"]) == tid or int(u["target"]) == tid:
-                        return None
-                    return self._cmd(u, 4, ("atk", tid), frame, lambda: act.attack(u, tgt))
-            return None
+            return self._fight(bb, u, info, sq, enemies, e_xy, near, d2, assigned, frame)
 
         if o.kind == "hunt_air" and o.target >= 0 and info.air is not None:
             tgt = next((e for e in enemies if int(e["id"]) == o.target), None)
@@ -155,6 +144,25 @@ class Micro(Component):
                 _d2((int(u["order_target_x"]), int(u["order_target_y"])), dest) <= (3 * 32) ** 2:
             return None
         return self._cmd(u, 2, ("amove", dest[0] // 96, dest[1] // 96), frame, lambda: act.attack_move(u, *dest))
+
+    def _fight(self, bb, u, info, sq, enemies, e_xy, near, d2, assigned, frame):
+        """A combat unit with enemies it can hit in reach (`near`: indices into `enemies`)."""
+        if self.kite:
+            k = self._kite(u, info, enemies, near, d2, bb.act, frame)
+            if k is not None:
+                return k
+        if self.focus:
+            return self._attack(bb, u, self._pick(u, info, enemies, near, d2, assigned, harass=sq.order.kind == "harass"),
+                                frame)
+        return None
+
+    def _attack(self, bb, u, tgt, frame):
+        if tgt is None:
+            return None
+        tid = int(tgt["id"])
+        if int(u["order_target"]) == tid or int(u["target"]) == tid:
+            return None
+        return self._cmd(u, 4, ("atk", tid), frame, lambda: bb.act.attack(u, tgt))
 
     def _tank(self, bb, u, t, sq, enemies, d2, siege_ok, frame, dest):
         act = bb.act
