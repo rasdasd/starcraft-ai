@@ -222,6 +222,26 @@ Stardust or Pluto on real StarCraft under Wine in WSL, several games at once) an
 `harness.botmatch` (the same on native Windows, one slow game at a time). See
 [docs/harness.md](docs/harness.md).
 
+### Builds
+
+A build is a JSON file: race, tags, the enemy races it is the default against, an opening of
+`[supply, type]` steps, and a goal (workers, bases, buildings, addons, units, upgrades, techs)
+whose numbers can be expressions over the board, e.g. `"Factory": "min(6, 2 + 2 * max(0, bases - 1))"`
+or `"Goliath": "6 + 2 * enemy_air"`. Optional `phases` override parts of the goal once their `when`
+expression holds; `attack_if` / `retreat_if` / `hold_if` set the army posture. The format is in
+`python/adjutant/strategies/spec.py` and the built-ins (Terran, Protoss, Zerg) are in
+`python/adjutant/builds/`.
+
+Put your own builds in `builds/` at the repo root (or any folder in `BWBOT_BUILDS`); a file with
+the same name as a built-in replaces it. They are loaded at start, checked (a broken file is
+reported and skipped), and competed for by every selector: `RuleSelector` by tags (`rush_safe`,
+`anti_air`) and `default_vs`, `Explore` at random, `LearnedStrategy` by predicted win rate. The
+strategy model describes builds by their tags and opening shape instead of by name, so it also
+scores builds it has never seen; no retraining is needed to add one. To always play one build, set
+`BWBOT_PROFILE_JSON='{"slots": {"strategy": {"impl": "ScriptedStrategy", "template": "my_build"}}}'`
+(or a path to such a file) with a profile whose production slot follows the goal (`planned`,
+`search`); `parity` plays the goliath bot's own build.
+
 ### Profiles and training
 
 `adjutant` (the default) is `parity`: the goliath bot's managers behind the blackboard. `planned` swaps

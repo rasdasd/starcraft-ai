@@ -1,0 +1,17 @@
+{
+  "name": "ling_9pool",
+  "race": "Zerg",
+  "description": "Nine-pool speedlings; expand behind the pressure.",
+  "tags": ["aggressive", "rush", "one_base"],
+  "default_vs": ["Zerg"],
+  "opening": [[9, "Spawning_Pool"], [9, "Extractor"], [10, "Overlord"], [10, "Zergling"]],
+  "attack_supply": 8,
+  "retreat_supply": 2,
+  "goal": {
+    "workers": "min(12 if minute < 4 else 30, workers_for())",
+    "bases": "2 if minute >= 4 else 1",
+    "buildings": {"Spawning_Pool": 1, "Extractor": 1},
+    "units": {"Zergling": 60},
+    "upgrades": [["Metabolic_Boost", 1]]
+  }
+}

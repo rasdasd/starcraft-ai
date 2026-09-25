@@ -29,6 +29,13 @@ if ($models) {
     New-Item -ItemType Directory -Force -Path (Join-Path $Ai 'models') | Out-Null
     $models | Copy-Item -Destination (Join-Path $Ai 'models') -Force
 }
+# Your builds (builds\) and learned ones (python\models\builds\); the built-ins are frozen into bot.exe.
+foreach ($src in @((Join-Path $Root 'builds'), (Join-Path $Root 'python\models\builds'))) {
+    if (Test-Path $src) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $Ai 'models\builds') | Out-Null
+        Copy-Item (Join-Path $src '*') (Join-Path $Ai 'models\builds') -Recurse -Force
+    }
+}
 
 $proxy = @"
 @echo off

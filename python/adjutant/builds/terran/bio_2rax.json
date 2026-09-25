@@ -1,0 +1,27 @@
+{
+  "name": "bio_2rax",
+  "race": "Terran",
+  "description": "Two-barracks marines into stim and medics.",
+  "tags": ["bio", "aggressive", "one_base"],
+  "default_vs": ["Zerg"],
+  "opening": [[9, "Supply_Depot"], [11, "Barracks"], [13, "Barracks"], [16, "Supply_Depot"], [20, "Supply_Depot"]],
+  "attack_supply": 20,
+  "retreat_supply": 6,
+  "goal": {
+    "workers": "min(22, workers_for())",
+    "bases": 1,
+    "buildings": {
+      "Barracks": "5 if done('Academy') else 3",
+      "Refinery": "done('Barracks') >= 2",
+      "Academy": "done('Barracks') >= 2",
+      "Engineering_Bay": "count('Marine') >= 12"
+    },
+    "units": {
+      "Marine": 60,
+      "Medic": "8 if done('Academy') else 0",
+      "Firebat": "4 if done('Academy') and enemy_race == 'Zerg' else 0"
+    },
+    "upgrades": [["U_238_Shells", 1], ["Terran_Infantry_Weapons", 1]],
+    "techs": ["Stim_Packs"]
+  }
+}

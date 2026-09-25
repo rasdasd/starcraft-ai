@@ -132,7 +132,12 @@ class GreedyPlanner(Component):
         if opening:
             t = int(st.opening_next)
             if self._reqs_done(bb, tree, tree.unit_requires(t)):
-                add("build", t, P_OPENING, "opening")
+                if not tree.is_building(t):
+                    add("train", t, P_OPENING, "opening", cost=tree.cost(t))
+                elif t == hall and self.done(bb, hall) > 0 and (tile := self.next_base(bb)) is not None:
+                    add("build", t, P_OPENING, "opening expand", near=tile, exact=True)
+                else:
+                    add("build", t, P_OPENING, "opening")
 
         # 3. workers
         if worker is not None:

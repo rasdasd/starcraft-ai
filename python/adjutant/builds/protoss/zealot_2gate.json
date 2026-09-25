@@ -1,0 +1,22 @@
+{
+  "name": "zealot_2gate",
+  "race": "Protoss",
+  "description": "Early zealot pressure from two gateways, then dragoons.",
+  "tags": ["aggressive", "one_base", "rush"],
+  "default_vs": ["Zerg"],
+  "opening": [[8, "Pylon"], [10, "Gateway"], [12, "Gateway"], [13, "Zealot"], [15, "Pylon"]],
+  "attack_supply": 12,
+  "retreat_supply": 4,
+  "goal": {
+    "workers": "min(24, workers_for())",
+    "bases": "2 if minute >= 7 else 1",
+    "buildings": {
+      "Gateway": "3 if minute < 6 else 5",
+      "Assimilator": "minute >= 4",
+      "Cybernetics_Core": "minute >= 4",
+      "Forge": "minute >= 7"
+    },
+    "units": {"Zealot": "30 if minute < 6 else 12", "Dragoon": "0 if minute < 5 else 30"},
+    "upgrades": [["Singularity_Charge", 1], ["Leg_Enhancements", 1]]
+  }
+}

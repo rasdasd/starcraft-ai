@@ -108,7 +108,8 @@ def test_train_and_learned_select_and_blend(tmp_path):
     ls = _strategy(bot)
     assert isinstance(ls, LearnedStrategy) and ls.model is not None
     assert bot.bb.strategy.template == "bio_2rax"
-    assert set(bot.bb.strategy.values) == {"bio_2rax", "goliath_1fact", "mech_expand"}
+    # anti_rush never appears in the logs but is scored by its descriptor
+    assert set(bot.bb.strategy.values) == {"anti_rush", "bio_2rax", "goliath_1fact", "mech_expand"}
 
     bot, w = _bot(strategy={"impl": "LearnedStrategy", "model": str(out), "mode": "blend"}, enemy=Race.Protoss)
     Sim(w).run(bot, 24 * 5)

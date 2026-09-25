@@ -74,6 +74,11 @@ UNITS: dict[int, tuple] = {
     U.Protoss_Cybernetics_Core: (_P, 200, 0, 900, 0, 0, 500, 500, 1, NONE_W, NONE_W, 0, 3, U.Protoss_Probe, 1, 3, 2, B | MECH, [U.Protoss_Gateway]),
     U.Protoss_Forge: (_P, 150, 0, 600, 0, 0, 550, 550, 1, NONE_W, NONE_W, 0, 3, U.Protoss_Probe, 1, 3, 2, B | MECH, [U.Protoss_Nexus]),
     U.Protoss_Photon_Cannon: (_P, 150, 0, 750, 0, 0, 100, 100, 0, W.STS_Photon_Cannon, W.STA_Photon_Cannon, 7, 3, U.Protoss_Probe, 1, 2, 2, B | MECH | ATK | DET, [U.Protoss_Forge]),
+    U.Protoss_Robotics_Facility: (_P, 200, 200, 1200, 0, 0, 500, 500, 1, NONE_W, NONE_W, 0, 3, U.Protoss_Probe, 1, 3, 2, B | MECH | PROD, [U.Protoss_Cybernetics_Core]),
+    U.Protoss_Observatory: (_P, 50, 100, 450, 0, 0, 250, 250, 1, NONE_W, NONE_W, 0, 3, U.Protoss_Probe, 1, 3, 2, B | MECH, [U.Protoss_Robotics_Facility]),
+    U.Protoss_Citadel_of_Adun: (_P, 150, 100, 900, 0, 0, 450, 450, 1, NONE_W, NONE_W, 0, 3, U.Protoss_Probe, 1, 3, 2, B | MECH, [U.Protoss_Cybernetics_Core]),
+    U.Protoss_Observer: (_P, 25, 75, 600, 2, 0, 40, 20, 0, NONE_W, NONE_W, 0, 1, U.Protoss_Robotics_Facility, 1, 1, 1, FL | MECH | MOV | DET, [U.Protoss_Observatory]),
+    U.Zerg_Evolution_Chamber: (_Z, 75, 0, 600, 0, 0, 750, 0, 1, NONE_W, NONE_W, 0, 3, U.Zerg_Drone, 1, 3, 2, B | ORG, [U.Zerg_Hatchery]),
     # neutral
     U.Resource_Mineral_Field: (Race.None_, 0, 0, 0, 0, 0, 100000, 0, 0, NONE_W, NONE_W, 0, 0, NONE_W, 0, 2, 1, F.ResourceContainer | F.IsMineralField | F.Neutral, []),
     U.Resource_Vespene_Geyser: (Race.None_, 0, 0, 0, 0, 0, 100000, 0, 0, NONE_W, NONE_W, 0, 0, NONE_W, 0, 4, 2, F.ResourceContainer | F.Neutral, []),
@@ -111,6 +116,13 @@ UPGRADES = {
     UpgradeType.U_238_Shells: (150, 150, 0, 0, 1500, 0, 1, U.Terran_Academy),
     UpgradeType.Ion_Thrusters: (100, 100, 0, 0, 1500, 0, 1, U.Terran_Machine_Shop),
     UpgradeType.Charon_Boosters: (100, 100, 0, 0, 2000, 0, 1, U.Terran_Machine_Shop),
+    UpgradeType.Singularity_Charge: (150, 150, 0, 0, 2500, 0, 1, U.Protoss_Cybernetics_Core),
+    UpgradeType.Leg_Enhancements: (150, 150, 0, 0, 2000, 0, 1, U.Protoss_Citadel_of_Adun),
+    UpgradeType.Protoss_Ground_Weapons: (100, 100, 50, 50, 4000, 480, 3, U.Protoss_Forge),
+    UpgradeType.Grooved_Spines: (150, 150, 0, 0, 1500, 0, 1, U.Zerg_Hydralisk_Den),
+    UpgradeType.Muscular_Augments: (150, 150, 0, 0, 1500, 0, 1, U.Zerg_Hydralisk_Den),
+    UpgradeType.Zerg_Missile_Attacks: (100, 100, 50, 50, 4000, 480, 3, U.Zerg_Evolution_Chamber),
+    UpgradeType.Metabolic_Boost: (100, 100, 0, 0, 1500, 0, 1, U.Zerg_Spawning_Pool),
 }
 
 TECHS = {

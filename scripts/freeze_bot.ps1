@@ -30,6 +30,7 @@ New-Item -ItemType Directory -Force -Path $OutDir, $work | Out-Null
     --hidden-import learned `
     --hidden-import blackboard `
     --hidden-import adjutant `
+    --add-data "$(Join-Path $PyRoot 'adjutant\builds');adjutant\builds" `
     (Join-Path $PyRoot 'packaging\run_bot.py')
 if ($LASTEXITCODE) { throw "PyInstaller failed ($LASTEXITCODE)" }
 

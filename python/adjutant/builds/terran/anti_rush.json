@@ -1,0 +1,23 @@
+{
+  "name": "anti_rush",
+  "race": "Terran",
+  "description": "Safe against rushes: early bunker, marines, SCV repair; then a factory.",
+  "tags": ["rush_safe", "defensive", "one_base"],
+  "opening": [[9, "Supply_Depot"], [10, "Barracks"], [12, "Barracks"], [13, "Bunker"], [15, "Supply_Depot"]],
+  "attack_supply": 30,
+  "retreat_supply": 10,
+  "hold_if": "minute < 5 and army < 40",
+  "goal": {
+    "workers": "min(26 if army >= 16 else 20, workers_for())",
+    "bases": 1,
+    "buildings": {
+      "Barracks": 2,
+      "Bunker": 1,
+      "Refinery": "army >= 16",
+      "Factory": "army >= 16",
+      "Academy": "done('Barracks') >= 2 and army >= 16"
+    },
+    "units": {"Marine": 20, "Vulture": "6 if army >= 16 else 0", "Medic": "4 if done('Academy') else 0"},
+    "upgrades": [["U_238_Shells", 1]]
+  }
+}

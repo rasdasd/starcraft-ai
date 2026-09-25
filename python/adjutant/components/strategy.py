@@ -77,7 +77,10 @@ class TemplateStrategy(Component):
     def _record(self, bb: Blackboard, every: int, reason: str = "") -> None:
         if self.current is None or not bb.recorder.due("strategy", "ctx", bb.frame, every):
             return
+        from ..learn.features import BUILD_SPEC, blend_features
+        bf = blend_features(TEMPLATES, self.weights or {self.current.name: 1.0})
         bb.record("strategy", "ctx", x=[round(float(v), 4) for v in self.context(bb)],
+                  b=[round(float(v), 4) for v in bf], bh=BUILD_SPEC.hash,
                   template=self.current.name, weights=self.weights, reason=reason)
 
     def choose(self, bb: Blackboard) -> Optional[Choice]:
@@ -149,45 +152,74 @@ class ScriptedStrategy(TemplateStrategy):
         self.template = template
 
     def choose(self, bb: Blackboard) -> Optional[Choice]:
-        return self.template if self.current is None else None
+        if self.current is not None:
+            return None
+        t = TEMPLATES.get(self.template)
+        if t is None or t.race != int(bb.game.self_race):
+            pick = RuleSelector().rule(bb)
+            log.warning("ScriptedStrategy: %s is not a %s build; using %s", self.template,
+                        race_label(int(bb.game.self_race)), pick)
+            return pick
+        return self.template
 
     def describe(self) -> dict:
         return {"impl": self.name, "template": self.template}
 
 
-RULE_DEFAULTS = {int(Race.Zerg): "bio_2rax", int(Race.Protoss): "mech_expand", int(Race.Terran): "mech_expand"}
+def race_label(race: int) -> str:
+    return Race(race).name if race in KNOWN_RACES else "Unknown"
 
 
 @register("RuleSelector")
 class RuleSelector(TemplateStrategy):
-    """Rush or proxy seen early -> `anti_rush`; enemy air (or air tech) -> `goliath_1fact`;
-    otherwise a per-matchup default (`unknown` for random opponents until their race is seen)."""
+    """Over the builds of our race (optionally only `templates`): a rush or proxy seen early -> a
+    build tagged `rush_safe`; enemy air (or air tech) -> one tagged `anti_air`; otherwise the build
+    whose `default_vs` names the enemy race ("Unknown" until a random opponent is seen), falling
+    back to the "Unknown" default, then the first build by name. `defaults` ({"Zerg": name, ...})
+    overrides the per-race choice."""
 
-    def __init__(self, defaults: Optional[dict] = None, unknown: str = "goliath_1fact", rush_until_s: int = 360,
-                 air_units: float = 3.0) -> None:
+    def __init__(self, defaults: Optional[dict] = None, unknown: Optional[str] = None, rush_until_s: int = 360,
+                 air_units: float = 3.0, templates: Optional[Sequence[str]] = None) -> None:
         super().__init__()
-        self.defaults = dict(RULE_DEFAULTS)
-        for k, v in (defaults or {}).items():
-            self.defaults[int(getattr(Race, k)) if isinstance(k, str) else int(k)] = v
-        self.unknown = unknown
+        self.defaults = {(k if isinstance(k, str) else race_label(int(k))).capitalize(): v
+                         for k, v in (defaults or {}).items()}
+        if unknown:
+            self.defaults["Unknown"] = unknown
         self.rush_until = rush_until_s * 24
         self.air_units = air_units
+        self.only = list(templates) if templates else None
 
-    def rule(self, bb: Blackboard) -> str:
+    def pool(self, bb: Blackboard) -> list[str]:
+        return race_templates(int(bb.game.self_race), self.only)
+
+    def rule(self, bb: Blackboard) -> Optional[str]:
         b, thr = bb.belief, bb.threats
+        pool = self.pool(bb)
+        if not pool:
+            return None
+
+        def tagged(tag: str) -> Optional[str]:
+            return next((n for n in pool if tag in TEMPLATES[n].tags), None)
+
         rush = b.opening in ("rush", "cheese") or b.proxy or thr.has("rush") or thr.has("worker_rush") \
             or thr.has("proxy")
-        if rush and bb.frame < self.rush_until and "anti_rush" in TEMPLATES:
-            return "anti_rush"
-        if (b.air >= self.air_units or any(t in AIR_TECH for t in b.tech)) and "goliath_1fact" in TEMPLATES:
-            return "goliath_1fact"
-        return self.defaults.get(enemy_race(bb), self.unknown)
+        if rush and bb.frame < self.rush_until and tagged("rush_safe"):
+            return tagged("rush_safe")
+        if (b.air >= self.air_units or any(t in AIR_TECH for t in b.tech)) and tagged("anti_air"):
+            return tagged("anti_air")
+        for race in (race_label(enemy_race(bb)), "Unknown"):
+            if self.defaults.get(race) in pool:
+                return self.defaults[race]
+            pick = next((n for n in pool if race in TEMPLATES[n].default_vs), None)
+            if pick:
+                return pick
+        return pool[0]
 
     def choose(self, bb: Blackboard) -> Optional[Choice]:
         return self.rule(bb)
 
     def describe(self) -> dict:
-        return {"impl": self.name, "defaults": {Race(k).name: v for k, v in self.defaults.items()}}
+        return {"impl": self.name, "defaults": self.defaults, "templates": self.only}
 
 
 def _rng(seed: Optional[int]) -> random.Random:
@@ -232,20 +264,17 @@ class Explore(TemplateStrategy):
 
 
 def load_strategy_model(path: str) -> tuple[Optional[Model], list[str], str]:
-    """(model, templates, message). The model's own template list defines its feature spec; the
-    spec must also match this code's context features."""
+    """(model, builds it was trained on, message). The model scores any build by its descriptor,
+    so the list is informational; the feature spec must match this code's."""
     from ..learn.features import strategy_spec
+    want = strategy_spec()
     cands = [path] + [os.path.join(str(d), os.path.basename(path)) for d in model_search_dirs()]
     for p in cands:
         if not os.path.isfile(p):
             continue
         try:
-            m = load_model(p)
-            templates = list(m.meta.get("templates", m.labels))
-            want = strategy_spec(templates)
-            if m.spec is None or (m.spec.name, m.spec.version, m.spec.hash) != (want.name, want.version, want.hash):
-                raise FeatureMismatch(f"features {m.spec and m.spec.name} != {want.name} v{want.version}")
-            return m, templates, f"loaded {p}"
+            m = load_model(p, want)
+            return m, list(m.meta.get("templates", [])), f"loaded {p}"
         except (FeatureMismatch, KeyError, ValueError, OSError) as e:
             return None, [], f"rejected {p}: {e}"
     return None, [], f"not found: {path}"
@@ -253,12 +282,13 @@ def load_strategy_model(path: str) -> tuple[Optional[Model], list[str], str]:
 
 @register("LearnedStrategy")
 class LearnedStrategy(TemplateStrategy):
-    """Win probability per template from `strategy.npz`. Re-decides at game start (meta-only
-    context), every `period_s`, and on belief events. `select`: follow the best template unless it
-    beats the current one by less than `margin`. `blend`: goal = templates weighted by
-    softmax(p / temperature) (weights below `min_weight` dropped); the opening comes from the top.
-    `epsilon` > 0 explores a random template at a decision. Without a usable model it runs the
-    `RuleSelector` rules."""
+    """Win probability per build from `strategy.npz`, over every build of our race (or only
+    `templates`), including builds the model never saw: it scores their descriptors. Re-decides at
+    game start (meta-only context), every `period_s`, and on belief events. `select`: follow the
+    best build unless it beats the current one by less than `margin`. `blend`: goal = builds
+    weighted by softmax(p / temperature) (weights below `min_weight` dropped); the opening comes
+    from the top. `epsilon` > 0 explores a random build at a decision. Without a usable model it
+    runs the `RuleSelector` rules."""
 
     def __init__(self, model: str = "strategy.npz", mode: str = "select", period_s: int = 45, margin: float = 0.03,
                  temperature: float = 0.05, min_weight: float = 0.15, epsilon: float = 0.0,
@@ -281,11 +311,9 @@ class LearnedStrategy(TemplateStrategy):
         self.rules.on_start(bb)
         self.rng = _rng(self.seed)
         self.model, self.model_templates, self.message = load_strategy_model(self.model_path)
-        race = int(bb.game.self_race)
-        usable = race_templates(race, self.model_templates) if self.model_templates else []
-        if self.only:
-            usable = [t for t in usable if t in self.only]
-        self.idx = [self.model_templates.index(t) for t in usable]
+        from ..learn.features import build_features
+        usable = race_templates(int(bb.game.self_race), self.only)
+        self.bfs = [build_features(TEMPLATES[t]) for t in usable]
         self.pool = usable
         if self.model is None or not usable:
             log.warning("LearnedStrategy: %s; using rules", self.message or "no usable templates")
@@ -296,8 +324,8 @@ class LearnedStrategy(TemplateStrategy):
 
     def predict(self, bb: Blackboard) -> dict[str, float]:
         from ..learn.features import strategy_inputs
-        X = strategy_inputs(self.context(bb), len(self.model_templates))
-        p = np.atleast_1d(self.model.predict(X[self.idx]))
+        X = strategy_inputs(self.context(bb), self.bfs)
+        p = np.atleast_1d(self.model.predict(X))
         return {t: float(v) for t, v in zip(self.pool, p)}
 
     def _due(self, bb: Blackboard) -> bool:
@@ -306,6 +334,7 @@ class LearnedStrategy(TemplateStrategy):
 
     def choose(self, bb: Blackboard) -> Optional[Choice]:
         if self.model is None:
+            self.rules.only = self.only
             return self.rules.rule(bb)
         if not self._due(bb):
             return None

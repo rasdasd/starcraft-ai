@@ -1,0 +1,25 @@
+{
+  "name": "dragoon_2gate",
+  "race": "Protoss",
+  "description": "Two gateways, early core, dragoon range; expand once a small dragoon force is out.",
+  "tags": ["one_base", "expand", "anti_air"],
+  "default_vs": ["Terran", "Protoss", "Unknown"],
+  "opening": [[8, "Pylon"], [10, "Gateway"], [12, "Assimilator"], [13, "Gateway"], [14, "Cybernetics_Core"],
+              [16, "Pylon"]],
+  "attack_supply": 40,
+  "retreat_supply": 14,
+  "goal": {
+    "workers": "min(50, workers_for())",
+    "bases": "2 if count('Dragoon') >= 6 else 1",
+    "buildings": {
+      "Gateway": "3 if bases < 2 else 6",
+      "Assimilator": "min(bases, 2)",
+      "Cybernetics_Core": 1,
+      "Forge": "bases >= 2",
+      "Robotics_Facility": "enemy_cloak or bases >= 2",
+      "Observatory": "enemy_cloak"
+    },
+    "units": {"Zealot": 4, "Dragoon": 40, "Observer": "2 if enemy_cloak else 1"},
+    "upgrades": [["Singularity_Charge", 1], ["Protoss_Ground_Weapons", 1]]
+  }
+}

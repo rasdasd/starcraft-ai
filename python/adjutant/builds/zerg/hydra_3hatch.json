@@ -1,0 +1,24 @@
+{
+  "name": "hydra_3hatch",
+  "race": "Zerg",
+  "description": "Hatch first, pool, third hatchery, hydralisks with range and speed.",
+  "tags": ["expand", "macro", "anti_air"],
+  "default_vs": ["Protoss", "Terran", "Unknown"],
+  "opening": [[9, "Overlord"], [12, "Hatchery"], [12, "Spawning_Pool"], [13, "Extractor"], [14, "Zergling"],
+              [16, "Overlord"]],
+  "attack_supply": 50,
+  "retreat_supply": 18,
+  "goal": {
+    "workers": "min(60, workers_for(per_base=14))",
+    "bases": "3 if minute >= 5 else 2",
+    "buildings": {
+      "Spawning_Pool": 1,
+      "Extractor": "min(bases - 1, 2)",
+      "Hydralisk_Den": "done('Spawning_Pool') > 0",
+      "Evolution_Chamber": "minute >= 7",
+      "Lair": "minute >= 6"
+    },
+    "units": {"Zergling": "8 if rush else 4", "Hydralisk": 40},
+    "upgrades": [["Grooved_Spines", 1], ["Muscular_Augments", 1], ["Zerg_Missile_Attacks", 1]]
+  }
+}

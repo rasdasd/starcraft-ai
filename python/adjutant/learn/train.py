@@ -5,8 +5,8 @@
     python -m adjutant.learn.train tactics  --logs runs/... --out models/tactics.npz
     python -m adjutant.learn.train micro    --logs runs/... --out models/micro.npz
 
-strategy: every `strategy/ctx` row (context + active template) is one sample labelled with the
-game result; each game's rows share weight 1 so long games do not dominate, and the validation
+strategy: every `strategy/ctx` row (context + descriptor of the active build) is one sample
+labelled with the game result; each game's rows share weight 1 so long games do not dominate, and the validation
 split is by game.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 from blackboard.recorder import iter_games
 from blackboard.train import fit
 
-from .features import CTX_SPEC, strategy_input, strategy_spec
+from .features import BUILD_SPEC, CTX_SPEC, blend_features, build_features, strategy_input, strategy_spec
 
 log = logging.getLogger("adjutant.train")
 
@@ -46,18 +46,30 @@ def strategy_dataset(dirs: Sequence[Path], templates: Optional[Sequence[str]] = 
         games.append((g["header"].get("game_id", g["path"]) + g["header"].get("side", ""), bool(g["end"]["won"]), good))
         seen.update(r["template"] for r in good)
     names = list(templates) if templates else sorted(seen)
-    index = {t: i for i, t in enumerate(names)}
+    from ..strategies import TEMPLATES
+
+    def descriptor(r: dict) -> Optional[np.ndarray]:
+        """The logged build descriptor, else one recomputed from the build (older logs)."""
+        if r.get("bh") == BUILD_SPEC.hash and len(r.get("b", ())) == BUILD_SPEC.dim:
+            return np.asarray(r["b"], np.float32)
+        if r.get("weights") and all(n in TEMPLATES for n in r["weights"]):
+            return blend_features(TEMPLATES, r["weights"])
+        return build_features(TEMPLATES[r["template"]]) if r["template"] in TEMPLATES else None
+
     X, y, groups, w = [], [], [], []
     stats: dict[str, list[int]] = {t: [0, 0, 0] for t in names}      # rows, games, wins
     for gid, won, rows in games:
-        rows = [r for r in rows if r["template"] in index]
+        rows = [(r, descriptor(r)) for r in rows if r["template"] in stats]
+        if any(bf is None for _, bf in rows):
+            skipped["unknown_build"] += sum(1 for _, bf in rows if bf is None)
+            rows = [(r, bf) for r, bf in rows if bf is not None]
         if not rows:
             continue
-        for t in {r["template"] for r in rows}:
+        for t in {r["template"] for r, _ in rows}:
             stats[t][1] += 1
             stats[t][2] += int(won)
-        for r in rows:
-            X.append(strategy_input(np.asarray(r["x"], np.float32), index[r["template"]], len(names)))
+        for r, bf in rows:
+            X.append(strategy_input(np.asarray(r["x"], np.float32), bf))
             y.append(float(won))
             groups.append(gid)
             w.append(1.0 / len(rows))
@@ -77,7 +89,7 @@ def train_strategy(args) -> int:
         print("no strategy rows found (play Explore games first)", file=sys.stderr)
         return 1
     X, y, groups, w = data
-    spec = strategy_spec(names)
+    spec = strategy_spec()
     model, rep = fit(X, y, task="binary", hidden=args.hidden, labels=("win",), spec=spec, weights=w, groups=groups,
                      epochs=args.epochs, l2=args.l2, lr=args.lr, seed=args.seed,
                      meta={"templates": names, "games": n_games})

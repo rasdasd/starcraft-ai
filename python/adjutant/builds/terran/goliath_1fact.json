@@ -1,0 +1,25 @@
+{
+  "name": "goliath_1fact",
+  "race": "Terran",
+  "description": "One-base goliaths (the goliath bot's opener and army as a build).",
+  "tags": ["anti_air", "mech", "one_base"],
+  "default_vs": ["Unknown"],
+  "opening": [[9, "Supply_Depot"], [11, "Barracks"], [12, "Refinery"], [15, "Factory"], [16, "Supply_Depot"]],
+  "attack_supply": 16,
+  "retreat_supply": 6,
+  "attack_if": "done('Goliath') >= 8",
+  "retreat_if": "done('Goliath') < 3",
+  "goal": {
+    "workers": "min(24, 16 + 3 * max(1, count('Refinery')))",
+    "bases": 1,
+    "buildings": {
+      "Barracks": 1,
+      "Factory": "4 if done('Armory') else 1",
+      "Armory": "done('Factory') > 0",
+      "Refinery": "2 if done('Factory') >= 2 else 1"
+    },
+    "units": {"Marine": 4, "Vulture": "0 if done('Armory') else count('Vulture') + 1", "Goliath": 60},
+    "addons": {"Machine_Shop": "done('Goliath') >= 2"},
+    "upgrades": [["Charon_Boosters", 1], ["Terran_Vehicle_Weapons", 1], ["Terran_Vehicle_Plating", 1]]
+  }
+}

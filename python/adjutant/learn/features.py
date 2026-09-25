@@ -1,10 +1,11 @@
 """Versioned feature encoders for learned components.
 
-Strategy: a context vector (meta features + a snapshot of the board at decision time) and the
-model input for "how likely do we win if template T is active in this context":
-    [ctx, onehot(T), ctx * onehot(T)]
-i.e. one linear win model per template plus a shared part, in a single `.npz`. The template list
-is part of the spec name/hash, so a model trained on a different template set is rejected.
+Strategy: a context vector (meta features + a snapshot of the board at decision time), a build
+descriptor (tags and opening shape, `build_features`), and the model input for "how likely do we
+win if build B is active in this context":
+    [ctx, bf(B), ctx * bf(B)]   (outer product, flattened)
+Builds are described rather than one-hot encoded, so a model scores builds it never saw (your own
+or generated ones) by their resemblance to the ones it did, and adding a build needs no retrain.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ import numpy as np
 
 from blackboard import Blackboard
 from blackboard.models import FeatureSpec
+from bwbot import UnitType as U
 from mybot.opponent import OPENING_NAMES
 
 from ..components.meta import META_FEATURES
@@ -58,19 +60,47 @@ def strategy_context(bb: Blackboard) -> np.ndarray:
     return np.array(meta + board + open_oh, np.float32)
 
 
-def strategy_spec(templates: Sequence[str]) -> FeatureSpec:
-    names = list(CTX_NAMES) + [f"t_{t}" for t in templates] + [f"{c}*{t}" for t in templates for c in CTX_NAMES]
-    return FeatureSpec("strategy:" + ",".join(templates), STRATEGY_VERSION, tuple(names))
+BUILD_VERSION = 1
+# Tag vocabulary; tags outside it are allowed in builds but carry no features.
+BUILD_TAGS = ("rush", "aggressive", "timing", "all_in", "cheese", "one_base", "expand", "macro", "fast_expand",
+              "defensive", "rush_safe", "anti_air", "air", "mech", "bio", "tech", "harass", "detection",
+              "economic", "late_game")
+_HALLS = {int(U.Terran_Command_Center), int(U.Zerg_Hatchery), int(U.Protoss_Nexus)}
+_GAS = {int(U.Terran_Refinery), int(U.Zerg_Extractor), int(U.Protoss_Assimilator)}
+BUILD_NAMES = (*[f"tag_{t}" for t in BUILD_TAGS], "attack_supply", "retreat_supply", "open_expand",
+               "open_expand_supply", "open_gas", "open_gas_supply", "open_steps", "bias")
+BUILD_SPEC = FeatureSpec("build", BUILD_VERSION, BUILD_NAMES)
 
 
-def strategy_input(ctx: np.ndarray, template_index: int, n_templates: int) -> np.ndarray:
-    oh = np.zeros(n_templates, np.float32)
-    oh[template_index] = 1.0
-    cross = np.zeros((n_templates, len(ctx)), np.float32)
-    cross[template_index] = ctx
-    return np.concatenate([ctx, oh, cross.ravel()])
+def build_features(t) -> np.ndarray:
+    """Race-agnostic descriptor of a build (a `Template`): its tags plus the shape of its opening.
+    The constant `bias` makes the ctx x build product include ctx itself."""
+    steps = t.opening_steps()
+    hall = next((s for s, u in steps if u in _HALLS), None)
+    gas = next((s for s, u in steps if u in _GAS), None)
+    return np.array([
+        *[1.0 if tag in t.tags else 0.0 for tag in BUILD_TAGS],
+        t.attack_supply / 100, t.retreat_supply / 100,
+        float(hall is not None), (hall or 0) / 30, float(gas is not None), (gas or 0) / 30,
+        len(steps) / 8, 1.0,
+    ], np.float32)
 
 
-def strategy_inputs(ctx: np.ndarray, n_templates: int) -> np.ndarray:
-    """All templates at once: (n_templates, dim)."""
-    return np.stack([strategy_input(ctx, i, n_templates) for i in range(n_templates)])
+def strategy_spec() -> FeatureSpec:
+    names = list(CTX_NAMES) + list(BUILD_NAMES) + [f"{c}*{b}" for c in CTX_NAMES for b in BUILD_NAMES]
+    return FeatureSpec("strategy_build", STRATEGY_VERSION * 100 + BUILD_VERSION, tuple(names))
+
+
+def strategy_input(ctx: np.ndarray, bf: np.ndarray) -> np.ndarray:
+    return np.concatenate([ctx, bf, np.outer(ctx, bf).ravel()]).astype(np.float32)
+
+
+def strategy_inputs(ctx: np.ndarray, bfs: Sequence[np.ndarray]) -> np.ndarray:
+    """One row per candidate build: (n_builds, dim)."""
+    return np.stack([strategy_input(ctx, bf) for bf in bfs])
+
+
+def blend_features(builds: dict, weights: dict[str, float]) -> np.ndarray:
+    """Weighted mean descriptor of the active builds (blend mode)."""
+    tot = sum(w for n, w in weights.items() if n in builds) or 1.0
+    return sum(build_features(builds[n]) * (w / tot) for n, w in weights.items() if n in builds)

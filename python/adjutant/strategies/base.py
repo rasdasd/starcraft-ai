@@ -1,8 +1,10 @@
-"""Strategy templates: an opening plus goal/posture rules over the board.
+"""Strategy templates ("builds"): an opening plus goal/posture rules over the board.
 
 A template never issues commands or picks individual builds; it says what the army and tech should
 look like (`Goal`) and when to fight (`Posture`). The production planner turns that into builds.
-Templates are the "pre-made strategies" a learned selector chooses among or blends.
+Templates are the builds a selector chooses among or blends. Most are JSON documents
+(`spec.BuildSpec`, loaded from `spec.build_dirs()`); a subclass of `Template` registered with
+`@template` can express rules the JSON format cannot.
 """
 from __future__ import annotations
 
@@ -19,6 +21,9 @@ class Template:
     race: int = int(Race.Terran)
     opening: Sequence[OpeningStep] = ()
     tags: frozenset[str] = frozenset()
+    default_vs: tuple[str, ...] = ()      # enemy races ("Zerg", ..., "Unknown") the rule selector picks it for
+    description: str = ""
+    source: str = "python"
     attack_supply: int = 40
     retreat_supply: int = 12
 
@@ -50,10 +55,15 @@ def done(bb: Blackboard, t: int) -> int:
     return bb.world.count_completed(t)
 
 
-def workers_for(bb: Blackboard, per_base: int = 16, cap: int = 60) -> int:
-    """Mineral saturation per base plus three per refinery."""
+REFINERY = {int(Race.Terran): int(U.Terran_Refinery), int(Race.Zerg): int(U.Zerg_Extractor),
+            int(Race.Protoss): int(U.Protoss_Assimilator)}
+
+
+def workers_for(bb: Blackboard, per_base: int = 16, cap: int = 60, per_gas: int = 3) -> int:
+    """Mineral saturation per base plus `per_gas` per refinery (of our race)."""
     bases = max(1, len(bb.world.depots))
-    return min(cap, per_base * bases + 3 * max(1, count(bb, U.Terran_Refinery)))
+    ref = REFINERY.get(int(bb.game.self_race), int(U.Terran_Refinery))
+    return min(cap, per_base * bases + per_gas * max(1, count(bb, ref)))
 
 
 TEMPLATES: dict[str, Template] = {}

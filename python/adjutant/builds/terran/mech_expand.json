@@ -1,0 +1,29 @@
+{
+  "name": "mech_expand",
+  "race": "Terran",
+  "description": "Factory expand into tanks and vultures (goliaths against air), up to three bases.",
+  "tags": ["mech", "expand", "macro"],
+  "default_vs": ["Protoss", "Terran"],
+  "opening": [[9, "Supply_Depot"], [11, "Barracks"], [12, "Refinery"], [16, "Factory"], [20, "Command_Center"],
+              [21, "Supply_Depot"]],
+  "attack_supply": 70,
+  "retreat_supply": 30,
+  "goal": {
+    "workers": "min(60, workers_for())",
+    "bases": "2 if count('SCV') < 40 else 3",
+    "buildings": {
+      "Barracks": 1,
+      "Factory": "min(6, 2 + 2 * max(0, bases - 1))",
+      "Refinery": "max(1, min(bases, 3))",
+      "Armory": "done('Factory') >= 2",
+      "Engineering_Bay": "enemy_air > 0",
+      "Missile_Turret": "2 if enemy_air > 2 else 0",
+      "Academy": "done('Factory') >= 3"
+    },
+    "units": {"Vulture": 8, "Siege_Tank_Tank_Mode": 16, "Goliath": "6 + int(2 * enemy_air)"},
+    "addons": {"Machine_Shop": "min(3, done('Factory'))", "Comsat_Station": "done('Academy') > 0"},
+    "upgrades": [["Ion_Thrusters", 1], ["Terran_Vehicle_Weapons", 1], ["Terran_Vehicle_Plating", 1],
+                 ["Charon_Boosters", 1], ["Terran_Vehicle_Weapons", 2]],
+    "techs": ["Tank_Siege_Mode", "Spider_Mines"]
+  }
+}

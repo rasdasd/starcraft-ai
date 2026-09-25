@@ -12,7 +12,7 @@ from typing import Optional
 
 import numpy as np
 
-from bwbot import Actions, UnitType
+from bwbot import Actions, Race, UnitType
 from bwbot.enums import Order
 from bwbot.observation import UnitTypeFlag
 
@@ -28,6 +28,8 @@ MINERAL_ORDERS = {
 }
 REPAIR_ORDERS = {int(Order.Repair), int(Order.MoveToRepair)}
 GAS_PER_REFINERY = 3
+REFINERY = {int(Race.Terran): int(UnitType.Terran_Refinery), int(Race.Zerg): int(UnitType.Zerg_Extractor),
+            int(Race.Protoss): int(UnitType.Protoss_Assimilator)}
 MINERALS_PER_PATCH = 2
 
 
@@ -136,7 +138,7 @@ class WorkerManager:
         return s.obs.nearest(s.workers[np.array(pool, dtype=np.intp)], x, y)
 
     def _assign_gas(self, s: State, act: Actions) -> None:
-        refs = s.obs.my_completed(self.refinery_type)
+        refs = s.obs.my_completed(REFINERY.get(int(s.game.self_race), self.refinery_type))
         if len(refs) == 0:
             self.gas.clear()
             return
