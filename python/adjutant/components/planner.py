@@ -169,7 +169,7 @@ class GreedyPlanner(Component):
         need = self.min_army(bb)
         short = w.army_supply < need
         if short:
-            severe = w.army_supply < 0.5 * need and need >= 8
+            severe = w.army_supply < 0.5 * need and (need >= 8 or bb.belief.army_supply > 0)
             prio = P_WORKER + 1 if severe else P_ARMY_URGENT
             left, used = self._army(bb, tree, goal, add, reserve, worker, held, prio=prio)
             # whatever idle producers can make now, while the goal's units are not available yet
