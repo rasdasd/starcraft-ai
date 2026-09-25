@@ -215,6 +215,7 @@ class SearchPlanner(GreedyPlanner):
             plan.notes += [f"{self._name(a)}+{f - bb.frame}" for a, f in best.steps[:4]]
         plan.army_order = None
         plan.cancel = cancels
+        plan.replace_queue = True
 
     def _name(self, a: Action) -> str:
         if a.kind == "unit":

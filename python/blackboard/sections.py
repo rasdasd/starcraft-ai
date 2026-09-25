@@ -258,6 +258,9 @@ class ProductionPlan:
     notes: list[str] = field(default_factory=list)
     army_order: Any = None                  # legacy planners (GoliathPolicy) also decide Attack/Rally
     cancel: list[int] = field(default_factory=list)   # building types whose unstarted jobs to drop
+    # the build items are the whole construction queue: types no longer planned are dropped and
+    # the queue follows plan priority (planners that re-plan every decision)
+    replace_queue: bool = False
 
     def summary(self) -> str:
         head = self.items[:4]

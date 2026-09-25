@@ -62,16 +62,13 @@ class GreedyPlanner(Component):
 
     # ------------------------------------------------------------------ helpers
     def _queued(self, bb: Blackboard, t: int) -> int:
-        prod, bm = bb.services.get("production"), bb.services.get("buildings")
-        n = 0
-        if prod is not None:
-            n += sum(1 for q in prod.queue if q == t)
-        if bm is not None:
-            n += bm.pending_count(t)
-        return n
+        """Building jobs of type t that a worker has taken but not started. The construction
+        queue itself is rebuilt from this plan every decision (`replace_queue`), so it is not counted."""
+        bm = bb.services.get("buildings")
+        return bm.starting_count(t) if bm is not None else 0
 
     def have(self, bb: Blackboard, t: int) -> int:
-        """Owned (incl. in production) + queued / not yet placed."""
+        """Owned (incl. in production) + taken by a worker but not placed yet."""
         return bb.world.count(t) + self._queued(bb, t)
 
     def done(self, bb: Blackboard, t: int) -> int:
@@ -248,6 +245,7 @@ class GreedyPlanner(Component):
         plan.notes = notes
         plan.army_order = None
         plan.cancel = cancels
+        plan.replace_queue = True
 
     # ------------------------------------------------------------------ pieces
     def _requests(self, bb: Blackboard, tree: TechTree, add, worker) -> list[int]:
@@ -286,7 +284,7 @@ class GreedyPlanner(Component):
     def _need_supply(self, bb: Blackboard, tree: TechTree, supply_t: int, hall: Optional[int]) -> bool:
         w = bb.world
         bm = bb.services.get("buildings")
-        pending = w.count(supply_t) - self.done(bb, supply_t) + (bm.pending_count(supply_t) if bm else 0)
+        pending = w.count(supply_t) - self.done(bb, supply_t) + (bm.starting_count(supply_t) if bm else 0)
         provided = int(bb.game.unit_types["supply_provided"][supply_t]) // 2
         future = w.supply_left + pending * provided
         if hall is not None:

@@ -34,7 +34,7 @@ def _queued(bot, t) -> bool:
     """Planned at some point: owned, in production, or waiting in the production queue."""
     from adjutant.components.planner import GreedyPlanner
     p = next(c for c in bot.sched.components if isinstance(c, GreedyPlanner))
-    return p.have(bot.bb, int(t)) > 0
+    return p.have(bot.bb, int(t)) > 0 or int(t) in bot.bb.services["production"].queue
 
 
 def test_worker_rush_pulls_workers_and_defends():

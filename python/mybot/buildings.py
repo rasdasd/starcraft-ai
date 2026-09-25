@@ -10,7 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from bwbot import Actions, UnitFlag
+from bwbot import Actions, Race, UnitFlag
 from bwbot.enums import Order
 
 from . import macro
@@ -81,6 +81,10 @@ class BuildingManager:
     def pending_count(self, unit_type: int) -> int:
         return sum(1 for t in self.tasks if t.unit_type == int(unit_type))
 
+    def starting_count(self, unit_type: int) -> int:
+        """Tasks of this type that have not begun construction (not in the unit counts yet)."""
+        return sum(1 for t in self.tasks if t.unit_type == int(unit_type) and t.status != CONSTRUCTING)
+
     def starting(self, unit_type: int) -> bool:
         """True if we have a task of this type that has not begun construction yet."""
         return any(t.unit_type == int(unit_type) and t.status != CONSTRUCTING for t in self.tasks)
@@ -133,6 +137,7 @@ class BuildingManager:
             task.building_id = bid
             if task.tile is None:
                 task.tile = macro.unit_tile(s.game, started)
+            self._keep_builder(task, s, act, workers, started)
             return True
 
         if task.status == CONSTRUCTING:
@@ -222,6 +227,26 @@ class BuildingManager:
         near = task.near or s.main_tile
         act.get_build_location(task.query_id, task.unit_type, near)
         log.info("f%d asking shim for %s near %s", s.frame, s.game.type_name(task.unit_type), near)
+
+    def _keep_builder(self, task: BuildTask, s: State, act: Actions, workers: WorkerManager, building) -> None:
+        """Terran construction stops without its SCV: send it (or a replacement) back to the site."""
+        if int(s.game.unit_types["race"][task.unit_type]) != int(Race.Terran):
+            return
+        w = s.obs.unit(task.worker_id) if task.worker_id is not None else None
+        if w is not None and (int(w["flags"]) & int(UnitFlag.Constructing)
+                              or int(w["order"]) == int(Order.ConstructingBuilding)):
+            return
+        if s.frame - task.last_issue_frame < REISSUE_FRAMES:
+            return
+        task.last_issue_frame = s.frame
+        if w is None or task.worker_id in workers.external or task.worker_id not in workers.build:
+            if task.worker_id is not None and task.worker_id not in workers.external:
+                workers.release(task.worker_id)
+            task.worker_id = None
+            self._replace_dead_builder(task, s, act, workers)
+            return
+        act.right_click(w, building)
+        log.info("f%d SCV #%d back to %s #%d", s.frame, task.worker_id, s.game.type_name(task.unit_type), task.building_id)
 
     def _replace_dead_builder(self, task: BuildTask, s: State, act: Actions,
                               workers: WorkerManager) -> None:

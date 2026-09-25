@@ -86,6 +86,22 @@ def test_bio_builds_rax_academy_and_stim():
     assert [it.priority for it in items] == sorted((it.priority for it in items), reverse=True)
 
 
+def test_construction_queue_follows_the_current_plan():
+    """Builds planned on frame 0 (before the opening takes over) must not wait at the head of the queue."""
+    g = make_game()
+    bot = _bot("mech_expand")
+    w = FakeWorld(g, minerals=50)
+    w.standard_start(6)
+    bot.game = g
+    bot.on_start(g)
+    sim = Sim(w)
+    for _ in range(12):
+        sim.run(bot, 24 * 10, skip=8)
+        planned = [it.type_id for it in bot.bb.plan.items if it.kind == "build"]
+        queue = bot.bb.services["production"].queue
+        assert set(queue) <= set(planned), (queue, planned)
+
+
 def test_expansion_goes_to_natural_exact_tile():
     g = make_game()
     bot = _bot("mech_expand")

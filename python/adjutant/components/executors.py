@@ -107,10 +107,13 @@ class Construction(Component):
         intents = []
         if isinstance(self.production, SpreadProductionManager):
             self.production.addon_targets = {it.type_id: max(1, it.count) for it in plan.items if it.kind == "addon"}
+        if plan.replace_queue:
+            self.production.queue.clear()
+            self.production.targets.clear()
         for it in plan.items:
             if it.kind == "build":
-                self.production.ensure_build(it.type_id, self.buildings, front=it.priority >= Priority.SUPPLY,
-                                             near=it.near, exact=it.exact)
+                front = it.priority >= Priority.SUPPLY and not plan.replace_queue
+                self.production.ensure_build(it.type_id, self.buildings, front=front, near=it.near, exact=it.exact)
             elif it.kind == "train":
                 intents += [Train(it.type_id)] * max(1, it.count)
             elif it.kind == "addon":
