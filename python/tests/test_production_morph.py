@@ -36,6 +36,20 @@ def test_zerg_supply_is_trained_from_larva():
     assert w.observe().count(U.Zerg_Overlord) >= 2
 
 
+def test_gas_building_without_refinery_does_not_block_the_refinery():
+    g = make_game(self_race=Race.Terran, enemy_race=Race.Terran)
+    w = FakeWorld(g, minerals=400)
+    w.standard_start(8)
+    sx, sy = g.self_player.start_location
+    w.add(U.Terran_Barracks, sx * 32 + 200, sy * 32 + 100)
+    pm, bm = ProductionManager(), BuildingManager()
+    pm.ensure_build(U.Terran_Factory, bm)
+    pm.ensure_build(U.Terran_Refinery, bm)
+    pm.update(perceive(w.observe(), g, Memory()), Actions(), bm)
+    assert [t.unit_type for t in bm.tasks] == [int(U.Terran_Refinery)]
+    assert pm.queue == [int(U.Terran_Factory)]
+
+
 def test_building_made_from_a_building_is_morphed_not_placed():
     g = make_game(self_race=Race.Zerg, enemy_race=Race.Terran)
     w = FakeWorld(g, minerals=400)

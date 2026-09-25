@@ -143,13 +143,17 @@ class ProductionManager:
         if self.queue and self._morph_building(self.queue[0], s, act, budget):
             self.queue.pop(0)
         starting = sum(1 for t in buildings.tasks if t.status != CONSTRUCTING)
-        while starting < self.max_starting and self.queue:
-            nxt = self.queue[0]
-            if not (budget.can_afford(s.game, nxt) and _prereqs_ready(s, nxt)):
+        i = 0
+        while starting < self.max_starting and i < len(self.queue):
+            nxt = self.queue[i]
+            if not _prereqs_ready(s, nxt) or _gas_blocked(s, nxt, budget, buildings):
+                i += 1                         # can't start yet; don't hold the queue behind it
+                continue
+            if not budget.can_afford(s.game, nxt):
                 break
             near, exact = self.targets.pop(nxt, (None, False))
             buildings.add(nxt, near=near, exact=exact)
-            self.queue.pop(0)
+            self.queue.pop(i)
             budget.spend(s.game, nxt)
             starting += 1
             log.info("f%d start build job %s", s.frame, s.game.type_name(nxt))
@@ -260,6 +264,18 @@ def tech_info(game: GameInfo, tech_type: int) -> Optional[dict]:
         if int(info["id"]) == int(tech_type):
             return info
     return None
+
+
+REFINERIES = (int(UnitType.Terran_Refinery), int(UnitType.Protoss_Assimilator), int(UnitType.Zerg_Extractor))
+
+
+def _gas_blocked(s: State, unit_type: int, budget: Budget, buildings: BuildingManager) -> bool:
+    """Needs more gas than banked and nothing is (or will be) mining any."""
+    if budget.gas >= int(s.game.unit_types[int(unit_type)]["gas_price"]):
+        return False
+    if any(s.count(r) for r in REFINERIES):
+        return False
+    return not any(int(t.unit_type) in REFINERIES for t in buildings.tasks)
 
 
 def _prereqs_ready(s: State, unit_type: int) -> bool:
