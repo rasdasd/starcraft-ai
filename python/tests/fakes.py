@@ -239,7 +239,7 @@ class FakeWorld:
         flags = UnitFlag.Exists | (UnitFlag.Completed if completed else 0) | (UnitFlag.Idle if idle else 0)
         d = dict(id=uid, type=int(unit_type), player=player, x=x, y=y, hit_points=int(t["max_hit_points"]),
                  shields=int(t["max_shields"]), flags=int(flags), visible_mask=0b11, order=-1, target=-1,
-                 order_target=-1, build_type=-1, build_unit=-1, addon=-1, transport=-1, carrier=-1,
+                 order_target=-1, build_type=int(U.None_), build_unit=-1, addon=-1, transport=-1, carrier=-1,
                  hatchery=-1, nydus_exit=-1, power_up=-1, rally_unit=-1, tech=int(TechType.None_),
                  upgrade=int(UpgradeType.None_), last_attacker_player=-1, last_hit_points=int(t["max_hit_points"]),
                  resources=0, resource_group=0)
@@ -479,7 +479,7 @@ class Sim:
                 src = w.get(b) if b >= 0 else None
                 if src is not None:
                     src["train_queue_count"] = 0
-                    src["build_type"] = -1
+                    src["build_type"] = int(U.None_)
                     src["flags"] = (src["flags"] | int(UnitFlag.Idle)) & ~int(UnitFlag.Constructing)
                     src["order"] = -1
             elif kind == "upgrade":

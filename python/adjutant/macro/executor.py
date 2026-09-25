@@ -43,6 +43,11 @@ REFINERIES = (int(U.Terran_Refinery), int(U.Protoss_Assimilator), int(U.Zerg_Ext
 SHIM_QUERY_FRAMES = 24 * 2
 
 
+def _building_something(u) -> bool:
+    """Constructing an addon or morphing (BWAPI reports UnitTypes::None when idle)."""
+    return 0 <= int(u["build_type"]) < int(U.None_)
+
+
 class Budget:
     def __init__(self, minerals: int, gas: int, supply: int) -> None:
         self.m, self.g, self.s = minerals, gas, supply
@@ -192,7 +197,7 @@ class Macro(Component):
         if not self._reqs_done(bb, t):
             return "prereq"
         srcs = [u for u in bb.obs.my_completed(src) if int(u["id"]) not in self.used
-                and int(u["build_type"]) < 0 and int(u["remaining_research_time"]) == 0
+                and not _building_something(u) and int(u["remaining_research_time"]) == 0
                 and int(u["remaining_upgrade_time"]) == 0]
         if not srcs:
             return "no source"
@@ -246,7 +251,7 @@ class Macro(Component):
         for u in units:
             if int(u["flags"]) & int(UnitFlag.Lifted):
                 continue
-            if tree.is_building(producer) and (int(u["train_queue_count"]) > 0 or int(u["build_type"]) >= 0
+            if tree.is_building(producer) and (int(u["train_queue_count"]) > 0 or _building_something(u)
                                                or int(u["remaining_research_time"]) or int(u["remaining_upgrade_time"])):
                 continue
             if needs_addon:
@@ -266,7 +271,7 @@ class Macro(Component):
         parent = self.tree.builder(t)
         parents = [u for u in bb.obs.my_completed(parent) if int(u["id"]) not in self.used and int(u["addon"]) < 0
                    and not int(u["flags"]) & int(UnitFlag.Lifted) and int(u["train_queue_count"]) == 0
-                   and int(u["build_type"]) < 0]
+                   and not _building_something(u)]
         if not parents:
             return "no parent"
         m, g = self.tree.cost(t)
