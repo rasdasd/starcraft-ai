@@ -38,6 +38,8 @@ BUILTINS: dict[str, dict] = {
         "crisis": {"impl": "Crisis"},
         "worker_defense": {"impl": "WorkerDefense"},
     }},
+    # production v2: build-order search over the economy simulator
+    "search": {"base": "planned", "name": "search", "slots": {"production": {"impl": "SearchPlanner"}}},
     "rules": {"base": "planned", "name": "rules", "slots": {"strategy": {"impl": "RuleSelector"}}},
     # data collection for the strategy win model
     "explore": {"base": "planned", "name": "explore", "slots": {"strategy": {"impl": "Explore"}}},

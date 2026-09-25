@@ -68,15 +68,19 @@ def _home(g):
 def test_hold_stance_holds_at_main_choke_and_micro_leases_units():
     bot, w, g = _setup("hold")
     hx, hy = _home(g)
-    ids = [w.add(U.Terran_Vulture, hx + 100 + i * 20, hy + 100) for i in range(3)]
+    ids = [w.add(U.Terran_Vulture, hx + i * 20, hy + 180) for i in range(3)]
     sim = Recording(w)
     sim.run(bot, 48)
     main = _squads(bot)["main"]
     assert main.units == set(ids) and main.order.kind == "hold"
-    assert (main.order.x, main.order.y) == tuple(g.main_choke.center)
+    # a few tiles inside the main from the choke, not on the ramp
+    cx, cy = g.main_choke.center
+    d_choke = ((main.order.x - cx) ** 2 + (main.order.y - cy) ** 2) ** 0.5
+    d_home = ((main.order.x - hx) ** 2 + (main.order.y - hy) ** 2) ** 0.5
+    assert 3 * 32 <= d_choke <= 5 * 32 and d_home < ((hx - cx) ** 2 + (hy - cy) ** 2) ** 0.5
     assert all(bot.bb.leases.owner(i) == "micro" for i in ids)
     moves = [c for c in sim.all() if c.unit in ids and c.type == C.Attack_Move]
-    assert moves and all((c.x, c.y) == tuple(g.main_choke.center) for c in moves)
+    assert moves and all((c.x, c.y) == (main.order.x, main.order.y) for c in moves)
 
 
 def test_attack_stance_pushes_at_attack_supply_and_retreats_from_bad_fights():

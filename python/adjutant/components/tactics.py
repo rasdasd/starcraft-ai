@@ -55,8 +55,9 @@ class Tactics(Component):
     def __init__(self, defend_radius_tiles: int = 22, retreat_prob: float = 0.35, resume_prob: float = 0.6,
                  retreat_s: int = 12, regroup_frac: float = 0.6, harass_max: int = 4, repair_hp: float = 0.35,
                  repaired_hp: float = 0.85, min_push: int = 3, defend_win: float = 0.85,
-                 executor: str = "micro", log_s: int = 5) -> None:
+                 executor: str = "micro", log_s: int = 5, choke_back_tiles: int = 4) -> None:
         self.log_frames = log_s * FPS
+        self.choke_back_px = choke_back_tiles * 32
         self.defend_px = defend_radius_tiles * 32
         self.retreat_prob = retreat_prob
         self.resume_prob = resume_prob
@@ -364,7 +365,12 @@ class Tactics(Component):
         if self.nat_exit is not None and self._owns_natural(bb):
             return self.nat_exit
         if bb.world.main_choke is not None:
-            return tuple(bb.world.main_choke)
+            # inside the main, off the ramp itself: units parked in a narrow choke block our own SCVs
+            cx, cy = bb.world.main_choke
+            hx, hy = self._home(bb)
+            d = math.hypot(hx - cx, hy - cy)
+            k = min(0.5, self.choke_back_px / d) if d > 0 else 0.0
+            return int(cx + (hx - cx) * k), int(cy + (hy - cy) * k)
         return self._home(bb)
 
     @staticmethod
