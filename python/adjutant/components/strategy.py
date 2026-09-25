@@ -63,12 +63,14 @@ class TemplateStrategy(Component):
         self.weights: dict[str, float] = {}
         self.values: Optional[dict[str, float]] = None
         self._opening: Optional[Opening] = None
+        self._start: Optional[np.ndarray] = None     # own unit counts at the first decision
 
     def on_start(self, bb: Blackboard) -> None:
         self.current = None
         self.weights = {}
         self.values = None
         self._opening = None
+        self._start = None
 
     def context(self, bb: Blackboard) -> np.ndarray:
         from ..learn.features import strategy_context
@@ -107,8 +109,10 @@ class TemplateStrategy(Component):
         st.template = name
         st.switched_frame = bb.frame
         st.history.append((bb.frame, name))
+        if self._start is None:
+            self._start = compat.state(bb).counts.copy()
         if self._opening is None or not self._opening.done:
-            self._opening = Opening(self.current.opening)
+            self._opening = Opening(self.current.opening, base=self._start)
         bb.raise_event("strategy_changed")
         bb.say(f"strategy {prev} -> {name}")
         bb.record("strategy", "switch", frm=prev, to=name)

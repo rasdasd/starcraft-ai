@@ -44,11 +44,15 @@ GOLIATH = (
 
 
 class Opening:
-    """Walks `steps` in order. `next_build` is idempotent for ProductionManager."""
+    """Walks `steps` in order. `next_build` is idempotent for ProductionManager.
 
-    def __init__(self, steps: Sequence[OpeningStep]) -> None:
+    `base` (unit counts at game start, e.g. `State.counts`) is not counted toward the steps, so a
+    Hatchery / Command Center / Overlord step means one more than we started with."""
+
+    def __init__(self, steps: Sequence[OpeningStep], base=None) -> None:
         self.steps = list(steps)
         self.i = 0
+        self.base = base
 
     def reset(self) -> None:
         self.i = 0
@@ -62,6 +66,8 @@ class Opening:
         while self.i < len(self.steps):
             step = self.steps[self.i]
             want = sum(1 for st in self.steps[: self.i + 1] if st.unit_type == step.unit_type)
+            if self.base is not None:
+                want += int(self.base[int(step.unit_type)])
             if s.count(step.unit_type) >= want:
                 self.i += 1
                 continue

@@ -352,6 +352,17 @@ class Sim:
         self.fg = 0.0
         self.log: list[str] = []
 
+    def _spawn_larva(self) -> None:
+        """One larva per completed hatchery (up to three near it), like the real 342-frame timer."""
+        w = self.w
+        halls = (int(U.Zerg_Hatchery), int(U.Zerg_Lair), int(U.Zerg_Hive))
+        larva = [u for u in w.units if u["type"] == int(U.Zerg_Larva) and u["player"] == w.game.self_id]
+        for h in [u for u in w.units if u["type"] in halls and u["player"] == w.game.self_id
+                  and u["flags"] & UnitFlag.Completed]:
+            near = sum(1 for l in larva if abs(l["x"] - h["x"]) + abs(l["y"] - h["y"]) < 160)
+            if near < 3:
+                w.add(U.Zerg_Larva, h["x"] + 32 * near - 32, h["y"] + 60)
+
     def _cost(self, t: int) -> tuple[int, int, int]:
         ut = self.w.game.unit_types[t]
         return int(ut["mineral_price"]), int(ut["gas_price"]), int(ut["supply_required"])
@@ -452,6 +463,8 @@ class Sim:
             if self.fg >= 1:
                 w.gas += int(self.fg)
                 self.fg -= int(self.fg)
+            if w.frame % 342 == 0:
+                self._spawn_larva()
         done = [p for p in self.pending if p[0] <= w.frame]
         self.pending = [p for p in self.pending if p[0] > w.frame]
         for _, kind, a, b in done:
