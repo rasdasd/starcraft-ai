@@ -52,6 +52,29 @@ def test_mech_expand_gets_factories_shop_tanks_and_expands():
     assert _n(w, U.Terran_Refinery) <= 2        # one geyser per owned base on the fake map
 
 
+def test_machine_shop_before_minute_eight_while_army_is_short():
+    bot, w, _ = _play("mech_expand", 8)
+    assert _n(w, U.Terran_Machine_Shop) >= 1
+    assert _n(w, U.Terran_Siege_Tank_Tank_Mode) >= 1
+
+
+def test_idle_barracks_spends_surplus_on_marines():
+    g = make_game()
+    bot = _bot("mech_expand")
+    w = FakeWorld(g, minerals=50)
+    w.standard_start(6)
+    sx, sy = g.self_player.start_location
+    w.add(U.Terran_Barracks, sx * 32 + 300, sy * 32 + 200)
+    for _ in range(3):
+        w.add(U.Terran_Supply_Depot, sx * 32 + 400, sy * 32 + 300)
+    bot.game = g
+    bot.on_start(g)
+    w.minerals = 800
+    Sim(w).run(bot, 8, skip=8)
+    fill = [it for it in bot.bb.plan.items if it.reason == "filler"]
+    assert fill and all(it.type_id == int(U.Terran_Marine) for it in fill)
+
+
 def test_bio_builds_rax_academy_and_stim():
     bot, w, worst = _play("bio_2rax", 12)
     assert worst <= 2

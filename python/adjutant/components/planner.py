@@ -46,7 +46,13 @@ class GreedyPlanner(Component):
     writes = ("plan",)
 
     def __init__(self, supply_lead: float = 1.0, max_supply: int = 200, army_from_min: float = 3.0,
-                 army_per_min: float = 4.0, army_cap: float = 30.0, enemy_army_factor: float = 1.0) -> None:
+                 army_per_min: float = 4.0, army_cap: float = 30.0, enemy_army_factor: float = 1.0,
+                 float_minerals: int = 500, float_short: int = 400, producers_per_base: int = 3,
+                 float_train: int = 200) -> None:
+        self.float_train = float_train          # bank (after goal trains) spent on filler units
+        self.float_minerals = float_minerals    # bank (after this decision's spending) that adds a producer
+        self.float_short = float_short          # ... while the army is short
+        self.producers_per_base = producers_per_base
         self.supply_lead = supply_lead      # supply buffer, in "decisions of full production" units
         self.max_supply = max_supply
         self.army_from_min = army_from_min  # minimum army supply: army_per_min per minute after this
@@ -78,6 +84,9 @@ class GreedyPlanner(Component):
     def on_start(self, bb: Blackboard) -> None:
         self.tree = TechTree(bb.game)
         self.race = int(bb.game.self_race)
+        producers = {self.tree.builder(t) for t in range(len(self.tree.ut)) if self.tree.known_unit(t)}
+        self.filler_map = {p: f for p in sorted(producers) if p != -1 and (f := self.tree.fillers(p, self.race))
+                           and (self.tree.is_building(p) or p == int(U.Zerg_Larva))}
 
     def tick(self, bb: Blackboard) -> None:
         tree = getattr(self, "tree", None)
@@ -172,6 +181,12 @@ class GreedyPlanner(Component):
                     add("build", t, P_CHAIN, "prereq")
                 notes.append(f"prereq {bb.game.type_name(t)}")
 
+            # 4a. addons: before any army trains, so their parent is held idle for them
+            for t, n in goal.addons.items():
+                if n > self.have(bb, t) and self._reqs_done(bb, tree, tree.unit_requires(t)):
+                    if self._free_parent(bb, tree, t):
+                        add("addon", t, P_TECH, "goal", count=n, cost=tree.cost(t))
+
             # 4b. too little army for the game time / the enemy we know about: units before
             # expansions and tech (and before their money is reserved)
             need = self.min_army(bb)
@@ -202,12 +217,6 @@ class GreedyPlanner(Component):
                     continue
                 add("build", t, P_BUILDING if producer else P_TECH, "goal")
 
-            # 7. addons
-            for t, n in goal.addons.items():
-                if n > self.have(bb, t) and self._reqs_done(bb, tree, tree.unit_requires(t)):
-                    if self._free_parent(bb, tree, t):
-                        add("addon", t, P_TECH, "goal", count=n, cost=tree.cost(t))
-
             # 8. upgrades / research
             me = bb.obs.me if bb.obs is not None and not short else None
             for u, lvl in goal.upgrades:
@@ -229,8 +238,9 @@ class GreedyPlanner(Component):
                 if self._reqs_done(bb, tree, tree.tech_requires(tech)):
                     add("research", tech, P_UPGRADE, "goal", cost=tree.tech_cost(tech))
 
-        # 9. army
-        self._army(bb, tree, goal, add, reserve, worker, held)
+        # 9. army, then 10. filler units from producers the goal leaves idle while money piles up
+        left, used = self._army(bb, tree, goal, add, reserve, worker, held)
+        self._filler(bb, tree, add, left, used, held)
 
         items.sort(key=lambda it: -it.priority)
         plan = bb.plan
@@ -305,7 +315,9 @@ class GreedyPlanner(Component):
         return max(by_time, self.enemy_army_factor * bb.belief.army_supply)
 
     def _army(self, bb: Blackboard, tree: TechTree, goal, add, reserve, worker, held,
-              prio: int = P_ARMY) -> None:
+              prio: int = P_ARMY) -> tuple[tuple[int, int, int], dict[int, int]]:
+        """Goal-mix trains on free producers. Returns the (minerals, gas, supply) left and the
+        producer slots used, per producer type."""
         w = bb.world
         minerals = w.minerals - reserve[0]
         gas = w.gas - reserve[1]
@@ -329,7 +341,7 @@ class GreedyPlanner(Component):
                 pick = None
                 for t in open_ if urgent else open_[:1]:
                     m, g = tree.cost(t)
-                    if m <= minerals and g <= gas and tree.supply(t) <= supply:
+                    if m <= minerals and (g == 0 or g <= gas) and tree.supply(t) <= supply:
                         pick = t
                         break
                 if pick is None:
@@ -338,16 +350,46 @@ class GreedyPlanner(Component):
                 minerals, gas, supply = minerals - m, gas - g, supply - tree.supply(pick)
                 deficits[pick] -= 1
                 counts[pick] = counts.get(pick, 0) + 1
-        if urgent and minerals >= 400 and by_producer:
-            # floating while short: another production building for the main army type
+        if by_producer and minerals >= (self.float_short if urgent else self.float_minerals):
+            # floating with every producer busy: another production building for the main army
+            # type (a macro hatchery when the producer is larva), up to `producers_per_base`
             main = max(goal.units, key=lambda t: goal.units[t] * tree.supply(t) if t != worker else -1)
             producer = tree.builder(main)
+            if producer != -1 and not tree.is_building(producer):
+                producer = HALL.get(self.race, -1)
+            cap = self.producers_per_base * max(1, len(w.depots))
             if producer != -1 and tree.is_building(producer) and not tree.is_addon(producer) \
-                    and self.have(bb, producer) - self.done(bb, producer) == 0:
-                add("build", producer, P_BUILDING, "min army producer")
+                    and self.have(bb, producer) - self.done(bb, producer) == 0 and self.have(bb, producer) < cap:
+                add("build", producer, P_BUILDING, "min army producer" if urgent else "float producer")
+        used: dict[int, int] = {}
         for t, n in counts.items():
             m, g = tree.cost(t)
             add("train", t, prio, "goal" if prio == P_ARMY else "min army", count=n, cost=(m * n, g * n))
+            used[tree.builder(t)] = used.get(tree.builder(t), 0) + n
+        return (minerals, gas, supply), used
+
+    def _filler(self, bb: Blackboard, tree: TechTree, add, left, used, held) -> None:
+        """Spend a surplus above `float_train` on the cheapest combat unit of each idle producer
+        (marines from a barracks the build does not use yet, zealots, zerglings)."""
+        minerals, _, supply = left
+        if minerals < self.float_train:
+            return
+        for producer, types in self.filler_map.items():
+            slots = self.done(bb, producer) - held.get(producer, 0) - used.get(producer, 0)
+            if producer == int(U.Zerg_Larva):
+                slots = min(slots, 1)
+            n, pick = 0, None
+            for t in types:
+                if tree.cost(t)[1] == 0 and self._reqs_done(bb, tree, tree.unit_requires(t)):
+                    pick = t
+                    break
+            if pick is None:
+                continue
+            m, g = tree.cost(pick)
+            while n < slots and minerals - m >= self.float_train - 100 and tree.supply(pick) <= supply:
+                minerals, supply, n = minerals - m, supply - tree.supply(pick), n + 1
+            if n:
+                add("train", pick, P_ARMY - 1, "filler", count=n, cost=(m * n, 0))
 
     def owned_geysers(self, bb: Blackboard) -> int:
         total = 0

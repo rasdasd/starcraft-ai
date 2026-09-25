@@ -3,7 +3,8 @@
 Strategy emits Intents every decision. `Build` is treated as "ensure this is on the
 queue or already being built" — it is not re-issued as a new construction job. The
 queue hands one building to BuildingManager at a time until that building has started.
-Trains, addons and upgrades spend whatever is left after construction reservations.
+Addons, trains and upgrades (in that order) spend whatever is left after construction
+reservations.
 """
 from __future__ import annotations
 
@@ -148,10 +149,11 @@ class ProductionManager:
                 budget.spend(s.game, nxt)
                 log.info("f%d start build job %s", s.frame, s.game.type_name(nxt))
 
+        self._addon_parents: set[int] = set()
+        for unit_type in self._addons:         # before trains, which would take the idle parent
+            self._addon(unit_type, s, act, budget)
         for unit_type in self._trains:
             self._train(unit_type, s, act, budget)
-        for unit_type in self._addons:
-            self._addon(unit_type, s, act, budget)
         for upgrade_type in self._upgrades:
             self._upgrade(upgrade_type, s, act, budget)
         for tech_type in self._researches:
@@ -167,8 +169,9 @@ class ProductionManager:
                 act.morph(producers[0], unit_type)
                 budget.spend(s.game, unit_type)
             return
-        idle = producers[producers["train_queue_count"] == 0]
-        if len(idle):
+        idle = [p for p in producers[producers["train_queue_count"] == 0]
+                if int(p["id"]) not in getattr(self, "_addon_parents", ())]
+        if idle:
             act.train(idle[0], unit_type)
             budget.spend(s.game, unit_type)
 
@@ -181,6 +184,7 @@ class ProductionManager:
                 continue
             act.build_addon(parent, unit_type)
             budget.spend(s.game, unit_type)
+            self._addon_parents.add(int(parent["id"]))
             log.info("f%d addon %s on #%d", s.frame, s.game.type_name(unit_type), int(parent["id"]))
             return
 

@@ -10,12 +10,23 @@ from typing import Callable, Iterable, Optional
 from bwbot import UnitType as U, UpgradeType as Up
 from bwbot.observation import GameInfo, UnitTypeFlag as F
 
-_LEVEL_23 = {Up.Terran_Infantry_Weapons, Up.Terran_Infantry_Armor, Up.Terran_Vehicle_Weapons,
-             Up.Terran_Vehicle_Plating, Up.Terran_Ship_Weapons, Up.Terran_Ship_Plating}
-UPGRADE_EXTRA: dict[tuple[int, int], list[int]] = {(int(Up.Charon_Boosters), 1): [int(U.Terran_Armory)]}
-for _u in _LEVEL_23:
-    for _lvl in (2, 3):
-        UPGRADE_EXTRA[(int(_u), _lvl)] = [int(U.Terran_Science_Facility)]
+UPGRADE_EXTRA: dict[tuple[int, int], list[int]] = {
+    (int(Up.Charon_Boosters), 1): [int(U.Terran_Armory)],
+    (int(Up.Adrenal_Glands), 1): [int(U.Zerg_Hive)],
+}
+_LEVEL_23 = {    # upgrade -> (level 2 requirement, level 3 requirement)
+    **{u: (U.Terran_Science_Facility,) * 2 for u in (
+        Up.Terran_Infantry_Weapons, Up.Terran_Infantry_Armor, Up.Terran_Vehicle_Weapons, Up.Terran_Vehicle_Plating,
+        Up.Terran_Ship_Weapons, Up.Terran_Ship_Plating)},
+    **{u: (U.Protoss_Templar_Archives,) * 2 for u in (Up.Protoss_Ground_Weapons, Up.Protoss_Ground_Armor)},
+    **{u: (U.Protoss_Fleet_Beacon,) * 2 for u in (Up.Protoss_Air_Weapons, Up.Protoss_Air_Armor)},
+    **{u: (U.Zerg_Lair, U.Zerg_Hive) for u in (
+        Up.Zerg_Melee_Attacks, Up.Zerg_Missile_Attacks, Up.Zerg_Carapace, Up.Zerg_Flyer_Attacks,
+        Up.Zerg_Flyer_Carapace)},
+}
+for _u, (_l2, _l3) in _LEVEL_23.items():
+    UPGRADE_EXTRA[(int(_u), 2)] = [int(_l2)]
+    UPGRADE_EXTRA[(int(_u), 3)] = [int(_l3)]
 
 NONE = -1
 
@@ -70,6 +81,19 @@ class TechTree:
 
     def known_unit(self, t: int) -> bool:
         return 0 <= t < len(self.ut) and int(self.ut["id"][t]) == t and self.builder(t) != NONE
+
+    def fillers(self, producer: int, race: int) -> list[int]:
+        """Combat units of `race` that `producer` makes, cheapest first (gas, then minerals): what
+        an idle production building can spend a surplus on (marines, zealots, zerglings)."""
+        out = []
+        for t in range(len(self.ut)):
+            if not self.known_unit(t) or self.builder(t) != producer or self.race(t) != race:
+                continue
+            fl = self.flags(t)
+            if fl & (F.Building | F.Worker) or not fl & F.CanAttack or self.supply(t) <= 0:
+                continue
+            out.append(t)
+        return sorted(out, key=lambda t: (self.cost(t)[1], self.cost(t)[0], t))
 
     # ------------------------------------------------------------------ upgrades / techs
     def upgrade_requires(self, u: int, level: int = 1) -> list[int]:
