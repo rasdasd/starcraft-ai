@@ -1,7 +1,8 @@
 """WorkerManager: stable mineral / gas / build / repair jobs.
 
 Builders and repairers are claimed by other managers and are not yanked back to mine.
-Gas stays at three workers per completed refinery. Mineral patches are filled to two
+Gas stays at three workers per completed refinery, none while gas is heavily over-banked
+relative to minerals. Mineral patches are filled to two
 before a third is piled on. Gather commands are issued only when the assignment is new
 or the worker is idle — not every decision.
 """
@@ -37,7 +38,9 @@ LOCAL_MINERAL_PX = 12 * 32
 
 
 class WorkerManager:
-    def __init__(self, local_only: bool = False) -> None:
+    def __init__(self, local_only: bool = False, gas_bank: tuple[int, int] = (300, 600)) -> None:
+        self.gas_bank = gas_bank
+        self.gas_per = GAS_PER_REFINERY
         self.build: set[int] = set()
         self.repair: set[int] = set()
         self.scout: set[int] = set()
@@ -56,6 +59,7 @@ class WorkerManager:
         self.gas.clear()
         self.mineral.clear()
         self._claimed_this_frame.clear()
+        self.gas_per = GAS_PER_REFINERY
 
     def claimed(self) -> set[int]:
         return self.build | self.repair | self.scout | self.external
@@ -137,24 +141,38 @@ class WorkerManager:
             return None
         return s.obs.nearest(s.workers[np.array(pool, dtype=np.intp)], x, y)
 
+    def _gas_target(self, s: State) -> int:
+        """Workers per refinery: none while gas is banked far beyond minerals, back to full once
+        it has been spent down (hysteresis between the two `gas_bank` levels)."""
+        low, high = self.gas_bank
+        if s.gas >= high and s.gas > 2 * s.minerals:
+            self.gas_per = 0
+        elif s.gas < low:
+            self.gas_per = GAS_PER_REFINERY
+        return self.gas_per
+
     def _assign_gas(self, s: State, act: Actions) -> None:
         refs = s.obs.my_completed(REFINERY.get(int(s.game.self_race), self.refinery_type))
         if len(refs) == 0:
             self.gas.clear()
             return
+        per = self._gas_target(s)
         ref_ids = {int(r["id"]) for r in refs}
         self.gas = {w: r for w, r in self.gas.items() if r in ref_ids and w not in self.claimed()}
 
         counts: dict[int, int] = {rid: 0 for rid in ref_ids}
-        for rid in self.gas.values():
-            counts[rid] = counts.get(rid, 0) + 1
+        for wid, rid in list(self.gas.items()):
+            if counts[rid] >= per:
+                del self.gas[wid]              # back to minerals (_assign_minerals sees a non-mineral order)
+                continue
+            counts[rid] += 1
         for w in s.workers:
             wid = int(w["id"])
             if wid in self.claimed() or wid in self.gas:
                 continue
             if int(w["order"]) in GAS_ORDERS:
                 tgt = int(w["order_target"]) if int(w["order_target"]) >= 0 else int(w["target"])
-                if tgt in counts:
+                if tgt in counts and counts[tgt] < per:
                     self.gas[wid] = tgt
                     counts[tgt] += 1
 
@@ -162,7 +180,7 @@ class WorkerManager:
                         if int(w["id"]) not in self.claimed() and int(w["id"]) not in self.gas]
         for r in refs:
             rid = int(r["id"])
-            while counts.get(rid, 0) < GAS_PER_REFINERY and mineral_pool:
+            while counts.get(rid, 0) < per and mineral_pool:
                 w = mineral_pool.pop(0)
                 wid = int(w["id"])
                 self.gas[wid] = rid
