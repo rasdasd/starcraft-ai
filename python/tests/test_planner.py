@@ -132,3 +132,11 @@ def test_army_trains_leave_money_for_tech():
     sim.run(bot, 8, skip=8)
     kinds = {(it.kind, it.type_id) for it in bot.bb.plan.items}
     assert ("addon", int(U.Terran_Machine_Shop)) in kinds or _n(w, U.Terran_Machine_Shop) > 0
+
+
+def test_zerglings_are_a_larva_filler():
+    from adjutant.techtree import TechTree
+    from bwbot import Race
+    tree = TechTree(make_game(self_race=Race.Zerg, enemy_race=Race.Terran))
+    assert tree.supply(int(U.Zerg_Zergling)) == 1
+    assert tree.fillers(int(U.Zerg_Larva), int(Race.Zerg))[0] == int(U.Zerg_Zergling)

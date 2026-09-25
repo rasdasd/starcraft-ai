@@ -398,8 +398,8 @@ class GreedyPlanner(Component):
             return
         for producer, types in self.filler_map.items():
             slots = self.done(bb, producer) - held.get(producer, 0) - used.get(producer, 0)
-            if producer == int(U.Zerg_Larva):
-                slots = min(slots, 1)
+            if producer == int(U.Zerg_Larva):     # larva is shared with drones and the goal mix
+                slots = min(slots, max(1, int(minerals // 400)))
             n, pick = 0, None
             for t in types:
                 if tree.cost(t)[1] == 0 and self._reqs_done(bb, tree, tree.unit_requires(t)):

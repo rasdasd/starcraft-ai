@@ -52,7 +52,7 @@ UNITS: dict[int, tuple] = {
     U.Zerg_Larva: (_Z, 0, 0, 0, 0, 0, 10, 0, 10, NONE_W, NONE_W, 0, 1, U.Zerg_Hatchery, 1, 1, 1, ORG, []),
     U.Zerg_Drone: (_Z, 50, 0, 300, 2, 0, 40, 0, 0, W.Spines, NONE_W, 1, 1, U.Zerg_Larva, 1, 1, 1, WK | ORG | ATK | MOV, []),
     U.Zerg_Overlord: (_Z, 100, 0, 600, 0, 16, 200, 0, 0, NONE_W, NONE_W, 0, 3, U.Zerg_Larva, 1, 2, 2, FL | ORG | MOV | DET, []),
-    U.Zerg_Zergling: (_Z, 50, 0, 420, 1, 0, 35, 0, 0, W.Claws, NONE_W, 0, 1, U.Zerg_Larva, 1, 1, 1, ORG | ATK | MOV, [U.Zerg_Spawning_Pool]),
+    U.Zerg_Zergling: (_Z, 50, 0, 420, 1, 0, 35, 0, 0, W.Claws, NONE_W, 0, 1, U.Zerg_Larva, 1, 1, 1, ORG | ATK | MOV | F.TwoUnitsInOneEgg, [U.Zerg_Spawning_Pool]),
     U.Zerg_Hydralisk: (_Z, 75, 25, 420, 2, 0, 80, 0, 0, W.Needle_Spines, W.Needle_Spines, 4, 2, U.Zerg_Larva, 1, 1, 1, ORG | ATK | MOV, [U.Zerg_Hydralisk_Den]),
     U.Zerg_Mutalisk: (_Z, 100, 100, 600, 4, 0, 120, 0, 0, W.Glave_Wurm, W.Glave_Wurm, 3, 1, U.Zerg_Larva, 1, 2, 2, FL | ORG | ATK | MOV, [U.Zerg_Spire]),
     U.Zerg_Hatchery: (_Z, 300, 0, 1800, 0, 2, 1250, 0, 1, NONE_W, NONE_W, 0, 3, U.Zerg_Drone, 1, 4, 3, B | ORG | PROD | DEPOT, []),

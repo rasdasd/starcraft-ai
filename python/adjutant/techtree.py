@@ -69,8 +69,10 @@ class TechTree:
         return int(self.ut["build_time"][t])
 
     def supply(self, t: int) -> int:
-        """Displayed supply used by one unit (BWAPI units / 2)."""
-        return int(self.ut["supply_required"][t]) // 2
+        """Displayed supply used by one train command (BWAPI units / 2): a zergling or scourge egg
+        holds two half-supply units."""
+        per = 2 if self.flags(t) & F.TwoUnitsInOneEgg else 1
+        return int(self.ut["supply_required"][t]) * per // 2
 
     def unit_requires(self, t: int) -> list[int]:
         out = [int(r) for r in self.req[t]] if t < len(self.req) else []

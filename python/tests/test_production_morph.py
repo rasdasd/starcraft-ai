@@ -7,9 +7,7 @@ from mybot.state import Memory, perceive
 
 
 def test_eggs_count_as_what_they_morph_into():
-    from bwbot.observation import UnitTypeFlag
     g = make_game(self_race=Race.Zerg, enemy_race=Race.Terran)
-    g.unit_types["flags"][int(U.Zerg_Zergling)] |= int(UnitTypeFlag.TwoUnitsInOneEgg)
     w = FakeWorld(g, minerals=400)
     w.standard_start(4)
     sx, sy = g.self_player.start_location
