@@ -220,6 +220,38 @@ Many games unattended: `harness.selfplay` (parallel headless OpenBW games in WSL
 including Zerg/Protoss sparring bots) and `harness.botmatch` (native Windows StarCraft against
 published SSCAIT bots). See [docs/harness.md](docs/harness.md).
 
+### Profiles and training
+
+`adjutant` (the default) is `parity`: the goliath bot's managers behind the blackboard. `planned` swaps
+in the new components (scripted belief, scouting, engagement evaluator, tactics + micro, crisis
+defense, greedy tech-tree planner); `search` replaces the planner with the build-order search over
+the economy simulator. The learned profiles build on `planned`, and each learned slot falls back to
+its scripted behaviour when its model is missing.
+
+Train one component at a time: collect games with its data profile, train, then evaluate the
+learned profile against the scripted one (commands run from `python/`, in WSL):
+
+| Component | Collect with | Train | Play with |
+|---|---|---|---|
+| Strategy win model | `explore` | `python -m adjutant.learn.train strategy --logs runs/X --out models/strategy.npz` | `learned`, `blend` |
+| Belief | `truth` (full map info, fog-filtered) | `... train belief --logs runs/X --out models` | `learned` |
+| Engagement predictor | any `planned`-based profile | `... train engage --logs runs/X --out models/engage.npz` | `learned_combat` |
+| Tactics value model | `explore_combat` | `... train tactics --logs runs/X --out models/tactics.npz` | `learned_combat` |
+| RL micro (experimental) | `explore_micro` | `... train micro --logs runs/X --out models/micro.npz` | `rl_micro` |
+
+```
+python -m harness.selfplay --p1 adjutant@explore_combat --p2 adjutant --games 48 --parallel 6 --run-id ec1
+python -m adjutant.learn.train tactics --logs ../runs/ec1 --out models/tactics.npz
+python -m harness.selfplay --p1 adjutant@learned_combat --p2 adjutant --games 24 --parallel 6 --run-id lc1
+```
+
+RL micro runs batch reinforcement learning. `RLMicro` picks one of five fight actions per unit
+(`focus`, `nearest`, `kite`, `back`, `stay`) and logs transitions whose reward is the local
+hit-point trade weighted by unit value. The trainer runs fitted Q iteration over those transitions.
+Repeat collect and train: `explore_micro` loads the current `micro.npz`, so each round explores
+around the latest policy. Learned micro only overrides the scripted action when its Q value is
+higher by `margin`.
+
 ## Protocol
 
 Defined in `proto/bw.fbs`; regenerate with `scripts/gen_proto.ps1` (Windows) or `scripts/gen_proto.sh`

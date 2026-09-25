@@ -49,6 +49,7 @@ BUILTINS: dict[str, dict] = {
     # combat training data: random tactics options 15% of the time (fight rows are always logged)
     "explore_combat": {"base": "planned", "name": "explore_combat", "slots": {
         "tactics": {"impl": "LearnedTactics", "epsilon": 0.15}}},
+    # experimental RL micro: explore_micro collects transitions (and uses micro.npz if present), rl_micro plays it
     "explore_micro": {"base": "planned", "name": "explore_micro", "slots": {
         "micro": {"impl": "RLMicro", "epsilon": 0.2}}},
     "rl_micro": {"base": "planned", "name": "rl_micro", "slots": {
