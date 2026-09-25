@@ -242,9 +242,18 @@ scores builds it has never seen; no retraining is needed to add one. To always p
 (or a path to such a file) with a profile whose production slot follows the goal (`planned`,
 `search`); `parity` plays the goliath bot's own build.
 
+Generated builds: `python -m adjutant.learn.builds mutate mech_expand --n 4` writes variants
+(opening timings and order, an extra production building, attack/retreat supply, goal counts) to
+`python/models/builds/` with a `parent` field. Play them with `explore` (it tries every build of
+our race), then `... builds stats runs/X runs/Y` for the win rate per build and `... builds prune
+runs/X --below 0.25 --min-games 6` to delete the generated ones that lose (hand-written builds are
+never touched), and retrain the strategy model on the same runs.
+
 ### Profiles and training
 
-`adjutant` (the default) is `parity`: the goliath bot's managers behind the blackboard. `planned` swaps
+`adjutant` (the default) is `parity` when playing Terran, `planned` as Protoss or Zerg (the goliath
+policy is Terran-only; see `race_profiles` in `adjutant.profiles`). `parity` is the goliath bot's
+managers behind the blackboard. `planned` swaps
 in the new components (scripted belief, scouting, engagement evaluator, tactics + micro, crisis
 defense, greedy tech-tree planner); `search` replaces the planner with the build-order search over
 the economy simulator. The learned profiles build on `planned`, and each learned slot falls back to
