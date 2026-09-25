@@ -16,6 +16,7 @@ from blackboard import Blackboard, Component, Phase, Priority
 from blackboard.profile import register
 from blackboard.sections import PlanItem
 from bwbot import Race, UnitType as U
+from bwbot.observation import UnitTypeFlag as F
 
 from ..techtree import TechTree
 
@@ -185,11 +186,12 @@ class GreedyPlanner(Component):
                 if n > 0:
                     needs += [r for r in tree.unit_requires(t) if r != worker]
             me = bb.obs.me if bb.obs is not None else None
-            for u, lvl in goal.upgrades if not short else ():
+            tech_now = not short and st.opening_done
+            for u, lvl in goal.upgrades if tech_now else ():
                 cur = int(me.upgrade_level[u]) if me is not None and me.upgrade_level.size > u else 0
                 if lvl == cur + 1:              # only the next level's requirements
                     needs += tree.upgrade_requires(u, lvl)
-            for tech in goal.techs if not short else ():
+            for tech in goal.techs if tech_now else ():
                 needs += tree.tech_requires(tech)
             for t in tree.missing(needs, lambda x: self.have(bb, x)):
                 if t == worker or t == hall and self.done(bb, hall) > 0 or t in later:
@@ -341,7 +343,8 @@ class GreedyPlanner(Component):
         for producer, types in by_producer.items():
             slots = self.done(bb, producer) - held.get(producer, 0)
             # short on army: keep producing the goal mix past its counts
-            deficits = {t: 10 ** 6 if urgent else goal.units[t] - self.have(bb, t) for t in types}
+            deficits = {t: 10 ** 6 if urgent and tree.flags(t) & F.CanAttack else goal.units[t] - self.have(bb, t)
+                        for t in types}
             for _ in range(slots):
                 open_ = [t for t in types if deficits[t] > 0]
                 open_.sort(key=lambda x: (self.have(bb, x) + counts.get(x, 0)) / max(1, goal.units[x]))

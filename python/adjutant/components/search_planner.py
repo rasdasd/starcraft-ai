@@ -24,7 +24,7 @@ from mybot.buildings import CONSTRUCTING
 
 from ..buildsearch import BuildSearch, Target
 from ..econsim import Action, EconSim
-from .planner import HALL, REFINERY, SUPPLY, WORKER, GreedyPlanner
+from .planner import HALL, P_SUPPLY, REFINERY, SUPPLY, WORKER, GreedyPlanner
 
 log = logging.getLogger("adjutant.search_planner")
 
@@ -179,6 +179,10 @@ class SearchPlanner(GreedyPlanner):
 
         cancels = self._requests(bb, self.tree, add, WORKER[self.race])
         hall = HALL[self.race]
+        supply_t = SUPPLY.get(self.race)
+        if supply_t is not None and bb.world.supply_total < self.max_supply and \
+                self._need_supply(bb, self.tree, supply_t, hall):
+            add("build", supply_t, P_SUPPLY, "supply")
         horizon = bb.frame + self.slack
         trains: Counter = Counter()
         prio = {}
