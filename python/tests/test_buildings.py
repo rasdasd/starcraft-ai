@@ -1,3 +1,5 @@
+import numpy as np
+
 from bwbot import Actions, UnitFlag, UnitType as U
 from bwbot.enums import UnitCommandType as C
 
@@ -17,6 +19,33 @@ def _tick(w, sim, pm, bm, wm, placer):
     sim.apply(act)
     sim.step(8)
     return act
+
+
+def test_protoss_buildings_go_in_pylon_power_and_zerg_on_creep():
+    from bwbot import Race
+    from bwbot.observation import TileFlag, UnitTypeFlag
+    from mybot.macro import find_build_tile
+
+    g = make_game(self_race=Race.Protoss)
+    g.unit_types["flags"][int(U.Protoss_Gateway)] |= int(UnitTypeFlag.RequiresPsi)
+    w = FakeWorld(g, minerals=500)
+    w.standard_start(4)
+    sx, sy = g.self_player.start_location
+    near = (sx + 2, sy + 6)
+    assert find_build_tile(w.observe(), U.Protoss_Gateway, near) is None          # no pylon yet
+    w.add(U.Protoss_Pylon, (sx + 8) * 32 + 32, (sy + 8) * 32 + 32)
+    tx, ty = find_build_tile(w.observe(), U.Protoss_Gateway, near)
+    assert ((tx + 2 - (sx + 9)) / 7.5) ** 2 + ((ty + 1.5 - (sy + 9)) / 4.5) ** 2 <= 1
+
+    gz = make_game(self_race=Race.Zerg)
+    gz.unit_types["flags"][int(U.Zerg_Spawning_Pool)] |= int(UnitTypeFlag.RequiresCreep)
+    wz = FakeWorld(gz, minerals=500)
+    wz.standard_start(4)
+    tiles = np.full((gz.map_height, gz.map_width), 3, np.uint8)
+    tiles[sy + 8:sy + 14, sx + 4:sx + 12] |= np.uint8(TileFlag.Creep)
+    wz.tiles = tiles
+    tx, ty = find_build_tile(wz.observe(), U.Zerg_Spawning_Pool, (sx + 2, sy + 10))
+    assert sy + 8 <= ty and ty + 2 <= sy + 14 and sx + 4 <= tx and tx + 3 <= sx + 12
 
 
 def test_terran_builder_pulled_off_construction_is_sent_back():

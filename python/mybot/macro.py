@@ -11,10 +11,11 @@ import numpy as np
 
 from bwbot import GameInfo, Observation, UnitFlag, UnitType
 from bwbot.enums import Order
-from bwbot.observation import UnitTypeFlag
+from bwbot.observation import TileFlag, UnitTypeFlag
 
 ADDON_TYPES = {UnitType.Terran_Barracks, UnitType.Terran_Factory, UnitType.Terran_Starport,
                UnitType.Terran_Science_Facility, UnitType.Terran_Command_Center}
+PSI_HALF_W, PSI_HALF_H = 7.5, 4.5
 RESOURCE_PAD = 3
 SEARCH_R_MIN = 2
 SEARCH_R_MAX = 32
@@ -101,6 +102,13 @@ def find_build_tile(obs: Observation, building: int, near_tile: tuple[int, int],
                 occ[ry, rx] = True
     level = g.ground_height[near_tile[1], near_tile[0]] // 2
     explored = obs.explored if obs.tiles.size else None
+    tflags = g.type_flags(building)
+    creep = (obs.tiles & TileFlag.Creep) != 0 if tflags & UnitTypeFlag.RequiresCreep and obs.tiles.size else None
+    pylons = None
+    if tflags & UnitTypeFlag.RequiresPsi:
+        pylons = [(int(p["x"]) / 32, int(p["y"]) / 32) for p in obs.my_completed(UnitType.Protoss_Pylon)]
+        if not pylons:
+            return None
     for tx, ty in spiral(near_tile[0], near_tile[1], SEARCH_R_MIN, SEARCH_R_MAX):
         if (tx, ty) in skip:
             continue
@@ -113,8 +121,18 @@ def find_build_tile(obs: Observation, building: int, near_tile: tuple[int, int],
             continue
         if explored is not None and not explored[sl].all():
             continue
+        if creep is not None and not creep[ty:ty + th, tx:tx + tw].all():
+            continue
+        if pylons is not None and not powered(pylons, tx + tw / 2, ty + th / 2):
+            continue
         return tx, ty
     return None
+
+
+def powered(pylons, cx: float, cy: float) -> bool:
+    """A building centred at tile (cx, cy) is inside a pylon's psi field (about 16 x 10 tiles;
+    slightly shrunk so the edge cases BWAPI refuses are skipped)."""
+    return any(((cx - px) / PSI_HALF_W) ** 2 + ((cy - py) / PSI_HALF_H) ** 2 <= 1.0 for px, py in pylons)
 
 
 def find_refinery_tile(obs: Observation, near_tile: tuple[int, int],
