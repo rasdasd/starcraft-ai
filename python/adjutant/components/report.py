@@ -23,10 +23,24 @@ class Snapshots(Component):
             plan=[f"{it.kind}:{bb.game.type_name(it.type_id) if it.kind in ('build', 'addon', 'train') else it.type_id}"
                   f"@{it.priority}" for it in bb.plan.items[:6]],
             notes=list(bb.plan.notes)[:6],
+            own={_short(bb, t): int(n) for t, n in enumerate(w.counts) if n},
         )
+        bm, pm = bb.services.get("buildings"), bb.services.get("production")
+        if bm is not None:
+            row["jobs"] = [f"{_short(bb, t.unit_type)}:{t.status}" for t in bm.tasks]
+        if pm is not None:
+            row["queue"] = [_short(bb, t) for t in getattr(pm, "queue", [])]
         t = bb.truth
         if t.enabled:
             row["t_counts"] = {str(k): v for k, v in t.counts.items()}
             row["t_army"] = t.army_supply
             row["t_bases"] = len(t.bases)
         bb.record("report", "snap", **row)
+
+
+def _short(bb: Blackboard, type_id) -> str:
+    name = bb.game.type_name(int(type_id))
+    for p in ("Terran_", "Protoss_", "Zerg_"):
+        if name.startswith(p):
+            return name[len(p):]
+    return name

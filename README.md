@@ -217,8 +217,10 @@ Models are numpy `.npz` files (no torch at inference), looked up in `bwapi-data/
 competition pack's `AI/models/`, then `python/models/`. Tests: `cd python; .venv\Scripts\python -m pytest`.
 
 Many games unattended: `harness.selfplay` (parallel headless OpenBW games in WSL, Python bots
-including Zerg/Protoss sparring bots) and `harness.botmatch` (native Windows StarCraft against
-published SSCAIT bots). See [docs/harness.md](docs/harness.md).
+including Zerg/Protoss sparring bots), `harness.winematch` (published bots such as Locutus,
+Stardust or Pluto on real StarCraft under Wine in WSL, several games at once) and
+`harness.botmatch` (the same on native Windows, one slow game at a time). See
+[docs/harness.md](docs/harness.md).
 
 ### Profiles and training
 

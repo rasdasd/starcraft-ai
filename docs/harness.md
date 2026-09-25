@@ -1,6 +1,6 @@
 # Game harnesses
 
-Two ways to play many games unattended. Both write `runs/<run-id>/results.jsonl` in the same
+Three ways to play many games unattended. All write `runs/<run-id>/results.jsonl` in the same
 format, and `python -m adjutant.learn.report runs/<run-id> [...]` summarizes them (win rates by
 player, matchup, map and opening template, with 95% Wilson intervals).
 
@@ -32,9 +32,42 @@ port with `BWBOT_NO_SPAWN=1`; the harness starts one `python -m harness.brain` p
 `sparring.zerg` (9-pool speedlings), `sparring.zerg:Hydra`, `sparring.protoss` (2-gate zealots),
 `sparring.protoss:Dragoon`. Small scripted bots that give self-play Zerg and Protoss opponents.
 
+## Published bots under Wine in WSL (fast, parallel)
+
+The recommended way to play published bots. Real StarCraft 1.16.1 runs under Wine; each game slot
+puts the two clients in their own Linux network namespaces on a private bridge, so they meet in a
+UDP LAN game (the sc-docker layout without Docker). Measured on a 12600K: 250 frames/s for one
+game, about 130 frames/s each with 4 games at once (native Windows is capped at about 64 frames/s
+and one game).
+
+```
+wsl -d Ubuntu -u root -- bash scripts/setup_wine.sh      # once: wine, wine32, xvfb
+wsl -d Ubuntu -u root --cd /mnt/c/starcraft-ai/python -- /home/<you>/.venvs/bwbot/bin/python \
+    -m harness.winematch --opponent Locutus --opponent Stardust --opponent Pluto --games 12 --parallel 4
+```
+
+- Needs root (network namespaces); `wsl -u root` needs no password. The Windows firewall is not
+  involved: all game traffic stays on WSL's virtual bridges.
+- Bots, `bwapi.ini`, and results are shared with `harness.botmatch`. Opponents not in `bots/` are
+  fetched from SSCAIT. Bots from elsewhere need a hand-written `bots/<name>/bot.json` plus `AI/` and
+  `BWAPI.dll`, as for Pluto (the release zip unpacked into `AI/`, BWAPI 4.4.0 from `game/`).
+- Both clients load the Tournament Manager module (`LocalSpeed 0`, `FrameSkip 256`); without it the
+  opponent plays at normal speed (15 frames/s). Wine renders with GDI (`WINEMATCH_RENDERER=gl` to
+  compare), which is about 30% faster than OpenGL on llvmpipe.
+- Slot `k` uses bridge `scbr<k>` (10.77.k.0/24), namespaces `sc<k>a` / `sc<k>b`, Xvfb displays
+  `:100+2k` / `:101+2k` started inside the namespaces (X abstract sockets are per network namespace,
+  and WSLg owns `/tmp/.X11-unix`), and instances plus Wine prefixes under `/root/sc/s<k>`.
+- A game that has not started after `--lobby-timeout` seconds (a crashed client) is recorded as
+  `no_start`. Per-game Wine, Xvfb and brain output is in `runs/<id>/games/<n>/`.
+- BWAPI 4.1.2 crashes in StarCraft's character-creation screen, so every instance gets a
+  multiplayer character file up front.
+
 ## Published bots on Windows (native StarCraft 1.16.1)
 
-The Tournament Manager route without Docker. One game at a time, at roughly 1-2x normal speed.
+The Tournament Manager route without Docker. Two clients on one Windows machine can only meet over
+"Local PC", which paces a game at about 64 frames/s and allows one game at a time; prefer
+`harness.winematch`. Allow StarCraft.exe through the firewall if you use `--lan-mode` UDP
+(port 6111); the brain talks to the shim over TCP on localhost (8790 and up).
 
 ```
 cd python

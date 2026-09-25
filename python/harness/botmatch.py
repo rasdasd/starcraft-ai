@@ -25,12 +25,15 @@ import argparse
 import io
 import json
 import os
+import queue
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Optional
 
@@ -124,19 +127,20 @@ def prepare_instance(inst: Path, bwapi_dll: Path, ai_files: list[Path]) -> None:
         (shutil.copytree if f.is_dir() else shutil.copy2)(f, bd / "AI" / f.name)
 
 
-def bwapi_ini(ai: str, race: str, name: str, map_path: str, host: bool, replay: str, left: int) -> str:
+def bwapi_ini(ai: str, race: str, name: str, map_path: str, host: bool, replay: str, left: int,
+              tournament: str = "", lan_mode: str = "Local PC", join: str = "JOIN_FIRST") -> str:
     return f"""[ai]
 ai = {ai}
 ai_dbg =
-tournament =
+tournament = {tournament}
 
 [auto_menu]
 auto_menu = LAN
 pause_dbg = OFF
-lan_mode = Local PC
+lan_mode = {lan_mode}
 auto_restart = OFF
 map = {map_path if host else ''}
-game = {'' if host else 'JOIN_FIRST'}
+game = {'' if host else join}
 mapiteration = RANDOM
 race = {race}
 enemy_count = 1
@@ -204,6 +208,15 @@ def install_path(value: Optional[str]) -> Optional[str]:
     return prev
 
 
+def read_install_path() -> Optional[str]:
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, SC_KEY) as k:
+            return winreg.QueryValueEx(k, "InstallPath")[0]
+    except OSError:
+        return None
+
+
 def ensure_bwta_dlls() -> None:
     """BWTA2 bots (UAlbertaBot, many 4.1.2 bots) need libgmp/libmpfr next to StarCraft.exe; the
     tournament images ship them, `game/` does not. BWMirror's jar bundles both."""
@@ -214,6 +227,48 @@ def ensure_bwta_dlls() -> None:
             if Path(info.filename).name in BWTA_DLLS:
                 (GAME / Path(info.filename).name).write_bytes(z.read(info))
     print(f"[botmatch] installed {', '.join(BWTA_DLLS)} into {GAME}")
+
+
+TM_REQUIRED = ("https://github.com/davechurchill/StarcraftAITournamentManager/raw/master/server/required/"
+               "Required_BWAPI_{v}.zip")
+TM_VERSIONS = ("440", "420", "412", "401B", "374")
+TM_DIR = ROOT / "bots" / "_tournament_module"
+
+
+def _sha1(path: Path) -> str:
+    import hashlib
+    return hashlib.sha1(path.read_bytes()).hexdigest()
+
+
+def tournament_module(bwapi_dll: Path) -> Optional[Path]:
+    """The Tournament Manager's TournamentModule.dll built for the BWAPI version of `bwapi_dll`
+    (matched by the BWAPI.dll the TM ships with each module; downloaded into bots/ on first use)."""
+    want = _sha1(bwapi_dll)
+    for v in TM_VERSIONS:
+        d = TM_DIR / v
+        if not (d / "TournamentModule.dll").exists():
+            with zipfile.ZipFile(io.BytesIO(_download(TM_REQUIRED.format(v=v)))) as z:
+                d.mkdir(parents=True, exist_ok=True)
+                for name in ("bwapi-data/BWAPI.dll", "bwapi-data/TournamentModule.dll"):
+                    (d / Path(name).name).write_bytes(z.read(name))
+        if _sha1(d / "BWAPI.dll") == want:
+            return d / "TournamentModule.dll"
+    return None
+
+
+def install_tournament_module(inst: Path, frame_skip: int) -> str:
+    """Copies the matching tournament module into `inst` with speed 0 + `frame_skip` rendering and no
+    timeouts / frame limit (the harness judges those). Returns the bwapi.ini `tournament` value."""
+    bd = inst / "bwapi-data"
+    tm = tournament_module(bd / "BWAPI.dll")
+    if tm is None:
+        print(f"[botmatch] no tournament module for {bd / 'BWAPI.dll'}; that client renders every frame")
+        return ""
+    shutil.copy2(tm, bd / "TournamentModule.dll")
+    (bd / "tm_settings.ini").write_text(
+        f"LocalSpeed 0\nFrameSkip {frame_skip}\nGameFrameLimit 0\nDrawUnitInfo false\n"
+        f"DrawTournamentInfo false\nDrawBotNames false\n", encoding="utf-8")
+    return "bwapi-data/TournamentModule.dll"
 
 
 def starcraft_pids() -> set[int]:
@@ -247,34 +302,42 @@ def win_python() -> str:
 
 
 # ---------------------------------------------------------------------------- match
+LAUNCH_LOCK = threading.Lock()      # InstallPath is one registry value: launches must not overlap
+
+
 def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_dir: Path,
-         args: argparse.Namespace) -> dict:
+         args: argparse.Namespace, slot: int = 0) -> dict:
     bot_dir, meta = load_bot(opp_name)
     gdir = run_dir / "games" / f"{index:04d}"
     gdir.mkdir(parents=True, exist_ok=True)
-    base = Path(args.instances)
+    base = Path(args.instances) / f"s{slot}"
     inst_a, inst_b = base / "inst_a", base / "inst_b"
+    host_name = f"{me.name[:14]}-{run_id[-3:]}{slot}"      # unique game name: the joiner looks it up
     prepare_instance(inst_a, GAME / "bwapi-data" / "BWAPI.dll", [SHIM_DLL])
     ai_files = [p for p in (bot_dir / "AI").iterdir()]
     prepare_instance(inst_b, bot_dir / "BWAPI.dll", ai_files)
     client = meta["botType"] != "AI_MODULE"
     game_id = f"{run_id}-g{index:04d}"
     replay = f"bwapi-data/replays/{game_id}.rep" if args.replays else ""
+    tm_a = install_tournament_module(inst_a, args.tm_frame_skip) if args.tm else ""
+    tm_b = install_tournament_module(inst_b, args.tm_frame_skip) if args.tm else ""
     (inst_a / "bwapi-data" / "bwapi.ini").write_text(
-        bwapi_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", me.name, map_path, True, replay, 20),
-        encoding="utf-8")
+        bwapi_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", host_name, map_path, True, replay,
+                  20 + 40 * slot, tm_a, args.lan_mode), encoding="utf-8")
     (inst_b / "bwapi-data" / "bwapi.ini").write_text(
         bwapi_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"), meta["name"],
-                  map_path, False, "", 680), encoding="utf-8")
+                  map_path, False, "", 680 + 40 * slot, tm_b, args.lan_mode, join=host_name), encoding="utf-8")
     _no_tips()
-    port = args.port
+    port = args.port + slot
     env_a = dict(os.environ, BWBOT_PORT=str(port), BWBOT_HOST="127.0.0.1", BWBOT_NO_SPAWN="1")
     logs = []
     t0 = time.time()
     procs = []
     pids: set[int] = set()
-    prev_install = install_path(str(inst_a) + "\\")
+    LAUNCH_LOCK.acquire()
+    holding = True
     try:
+        install_path(str(inst_a) + "\\")
         pids |= launch(inst_a, env_a)
         benv = dict(os.environ, BWBOT_RESULT=str(gdir / "result_a.json"), BWBOT_LOG_DIR=str(gdir / "logs"),
                     BWBOT_GAME_ID=game_id, BWBOT_SIDE="a", PYTHONPATH=str(ROOT / "python"))
@@ -285,11 +348,15 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         logs.append(fh)
         brain = subprocess.Popen([win_python(), "-m", "harness.brain", me.spec, "--port", str(port), "--games", "1",
                                   "--max-frames", str(args.max_frames), "--connect-timeout", "180", "--no-apm-hud",
-                                  *me.args], cwd=ROOT / "python", env=benv, stdout=fh, stderr=subprocess.STDOUT)
+                                  *me.args, *args.brain_args], cwd=ROOT / "python", env=benv, stdout=fh,
+                                 stderr=subprocess.STDOUT)
         procs.append(brain)
         time.sleep(args.join_delay)
         install_path(str(inst_b) + "\\")
         pids |= launch(inst_b)
+        time.sleep(3.0)                # BWAPI reads bwapi.ini (via InstallPath) while injecting
+        LAUNCH_LOCK.release()
+        holding = False
         if client:
             procs.append(_start_client(inst_b, meta, gdir))
         deadline = t0 + args.timeout_min * 60
@@ -297,16 +364,23 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
             time.sleep(1.0)
         timed_out = brain.poll() is None
     finally:
+        if holding:
+            LAUNCH_LOCK.release()
         for p in procs:
             if p.poll() is None:
                 p.kill()
         kill_pids(pids)
         time.sleep(1.0)
-        install_path(prev_install)
         for fh in logs:
             fh.close()
         if replay and (inst_a / replay).is_file():
             shutil.move(str(inst_a / replay), str(gdir / "replay.rep"))
+    return game_row(index, game_id, map_path, me, meta, gdir, args.max_frames, timed_out, t0, "botmatch")
+
+
+def game_row(index: int, game_id: str, map_path: str, me: Player, meta: dict, gdir: Path, max_frames: int,
+             timed_out: bool, t0: float, harness: str) -> dict:
+    """The results.jsonl row for one game, judged from our brain's result file (the opponent has none)."""
     a = {"name": me.name, "spec": me.spec, "profile": me.profile, "race": me.race}
     ra = None
     if (gdir / "result_a.json").is_file():
@@ -317,15 +391,15 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
     b = {"name": meta["name"], "spec": f"sscait:{meta['name']}", "profile": None, "race": meta.get("race"),
          "botType": meta["botType"]}
     rb = None if ra is None else {"won": not ra["won"], "frame": ra["frame"], "total": ra.get("enemy_total", 0)}
-    if ra is not None and ra["frame"] >= args.max_frames - 48 and not ra.get("enemy_total"):
+    if ra is not None and ra["frame"] >= max_frames - 48 and not ra.get("enemy_total"):
         rb["total"] = ra.get("total", 0)
-    winner, reason = judge(ra, rb, args.max_frames)
+    winner, reason = judge(ra, rb, max_frames)
     if timed_out and reason != "elimination":
         reason = "timeout"
     return {"game": index, "game_id": game_id, "map": map_path, "a": a, "b": b, "winner": winner,
             "winner_name": {"a": a["name"], "b": b["name"]}.get(winner), "reason": reason,
             "frames": (ra or {}).get("frame", 0), "wall_s": round(time.time() - t0, 1), "dir": str(gdir),
-            "harness": "botmatch"}
+            "harness": harness}
 
 
 def _start_client(inst: Path, meta: dict, gdir: Path) -> subprocess.Popen:
@@ -341,6 +415,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--p1", default="adjutant", help="our player (module[:Class][@profile])")
     ap.add_argument("--opponent", action="append", default=[], help="SSCAIT bot name (repeatable; rotated)")
     ap.add_argument("--games", type=int, default=1)
+    ap.add_argument("--parallel", type=int, default=1,
+                    help="matches at once (each Local PC game runs at ~64 frames/s, so this is the speed-up)")
     ap.add_argument("--maps", nargs="*")
     ap.add_argument("--max-frames", type=int, default=24 * 60 * 25)
     ap.add_argument("--timeout-min", type=float, default=40)
@@ -350,6 +426,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--out", default=str(ROOT / "runs"))
     ap.add_argument("--instances", default=str(ROOT / "runs" / "botmatch"))
     ap.add_argument("--no-replays", dest="replays", action="store_false")
+    ap.add_argument("--brain-args", nargs="*", default=[], help="extra bwbot.run options for our brain")
+    ap.add_argument("--no-tm", dest="tm", action="store_false",
+                    help="don't load the Tournament Manager module (speed 0 + frame skip in both clients)")
+    ap.add_argument("--tm-frame-skip", type=int, default=256, help="render every N frames (tournament module)")
+    ap.add_argument("--lan-mode", default="Local PC", help='multiplayer network: "Local PC", '
+                    '"Local Area Network (UDP)", "Direct IP"')
     args = ap.parse_args(argv)
 
     if args.list:
@@ -374,15 +456,35 @@ def main(argv: Optional[list[str]] = None) -> int:
     maps = args.maps or DEFAULT_MAPS
     run_dir = Path(args.out) / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+    for opp in dict.fromkeys(args.opponent):
+        load_bot(opp)
     rows = []
-    for i in range(args.games):
-        opp = args.opponent[i % len(args.opponent)]
-        row = play(i, me, opp, maps[i % len(maps)], args.run_id, run_dir, args)
-        rows.append(row)
-        with (run_dir / "results.jsonl").open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row) + "\n")
-        print(f"[botmatch] g{i:04d} {me.name} vs {opp} on {Path(row['map']).stem}: {row['winner_name'] or '-'} "
-              f"({row['reason']}, {row['frames']} frames, {row['wall_s']:.0f}s)", flush=True)
+    out_lock = threading.Lock()
+    free = queue.Queue()
+    for s in range(max(1, args.parallel)):
+        free.put(s)
+    prev_install = read_install_path()
+
+    def one(i: int) -> None:
+        slot = free.get()
+        try:
+            opp = args.opponent[i % len(args.opponent)]
+            row = play(i, me, opp, maps[i % len(maps)], args.run_id, run_dir, args, slot)
+        finally:
+            free.put(slot)
+        with out_lock:
+            rows.append(row)
+            with (run_dir / "results.jsonl").open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row) + "\n")
+            print(f"[botmatch] g{i:04d} {me.name} vs {opp} on {Path(row['map']).stem}: {row['winner_name'] or '-'} "
+                  f"({row['reason']}, {row['frames']} frames, {row['wall_s']:.0f}s)", flush=True)
+
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, args.parallel)) as pool:
+            list(pool.map(one, range(args.games)))
+    finally:
+        install_path(prev_install)
+    rows.sort(key=lambda r: r["game"])
     from adjutant.learn.report import print_report
     print_report(rows)
     return 0
