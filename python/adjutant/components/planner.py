@@ -76,7 +76,8 @@ class GreedyPlanner(Component):
         return bb.world.count_completed(t)
 
     def _reqs_done(self, bb: Blackboard, tree: TechTree, reqs) -> bool:
-        return all(self.done(bb, r) > 0 for r in reqs if r != WORKER.get(self.race))
+        skip = (WORKER.get(self.race), int(U.Zerg_Larva))     # always there again soon
+        return all(self.done(bb, r) > 0 for r in reqs if r not in skip)
 
     # ------------------------------------------------------------------ tick
     def on_start(self, bb: Blackboard) -> None:

@@ -140,3 +140,20 @@ def test_zerglings_are_a_larva_filler():
     tree = TechTree(make_game(self_race=Race.Zerg, enemy_race=Race.Terran))
     assert tree.supply(int(U.Zerg_Zergling)) == 1
     assert tree.fillers(int(U.Zerg_Larva), int(Race.Zerg))[0] == int(U.Zerg_Zergling)
+
+
+def test_larva_starved_zerg_with_a_bank_adds_a_macro_hatchery():
+    from bwbot import Race
+    g = make_game(self_race=Race.Zerg, enemy_race=Race.Terran)
+    bot = _bot("hydra_3hatch")
+    w = FakeWorld(g, minerals=900)
+    w.standard_start(12)
+    w.units = [u for u in w.units if u["type"] != int(U.Zerg_Larva)]
+    sx, sy = g.self_player.start_location
+    w.add(U.Zerg_Spawning_Pool, sx * 32 + 200, sy * 32 + 100)
+    w.add(U.Zerg_Hydralisk_Den, sx * 32 + 260, sy * 32 + 100)
+    w.frame = 24 * 60 * 7
+    bot.game = g
+    bot.on_start(g)
+    Sim(w).run(bot, 16, skip=8)
+    assert ("build", int(U.Zerg_Hatchery)) in {(it.kind, it.type_id) for it in bot.bb.plan.items}
