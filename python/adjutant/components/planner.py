@@ -184,9 +184,12 @@ class GreedyPlanner(Component):
             for t, n in list(goal.buildings.items()) + list(goal.addons.items()):
                 if n > 0:
                     needs += [r for r in tree.unit_requires(t) if r != worker]
-            for u, lvl in goal.upgrades:
-                needs += tree.upgrade_requires(u, lvl)
-            for tech in goal.techs:
+            me = bb.obs.me if bb.obs is not None else None
+            for u, lvl in goal.upgrades if not short else ():
+                cur = int(me.upgrade_level[u]) if me is not None and me.upgrade_level.size > u else 0
+                if lvl == cur + 1:              # only the next level's requirements
+                    needs += tree.upgrade_requires(u, lvl)
+            for tech in goal.techs if not short else ():
                 needs += tree.tech_requires(tech)
             for t in tree.missing(needs, lambda x: self.have(bb, x)):
                 if t == worker or t == hall and self.done(bb, hall) > 0 or t in later:
