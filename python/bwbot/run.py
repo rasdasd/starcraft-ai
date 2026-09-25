@@ -1,4 +1,4 @@
-"""CLI: python -m bwbot.run examples.basic_terran:BasicTerran [--host H] [--port P] [--frame-skip N] ...
+"""CLI: python -m bwbot.run adjutant:Adjutant [--host H] [--port P] [--frame-skip N] ...
 
 The bot spec is `module.path:ClassName`; if the class is omitted, the module must expose a
 `Bot` subclass named `BOT` or exactly one Bot subclass.
@@ -36,7 +36,7 @@ def load_bot(spec: str) -> Bot:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="bwbot", description="Run a bwbot Bot against the shim.")
-    ap.add_argument("bot", help="module.path[:ClassName], e.g. examples.basic_terran:BasicTerran")
+    ap.add_argument("bot", help="module.path[:ClassName], e.g. adjutant:Adjutant")
     ap.add_argument("--host", default=os.environ.get("BWBOT_HOST", "127.0.0.1"))
     ap.add_argument("--port", type=int, default=int(os.environ.get("BWBOT_PORT", "8765")))
     ap.add_argument("--games", type=int, default=None, help="stop after N games (default: forever)")

@@ -37,6 +37,7 @@ void spawnBotIfNeeded() {
   const char* port = std::getenv("BWBOT_PORT");
   if (!port || !*port) port = "8765";
   const char* spec = std::getenv("BWBOT_BOT_SPEC");
+  if (!spec || !*spec) spec = "adjutant";
 #ifdef _WIN32
   char dll[MAX_PATH] = {};
   if (!g_self || !GetModuleFileNameA(g_self, dll, MAX_PATH)) return;
@@ -48,11 +49,7 @@ void spawnBotIfNeeded() {
   if ((!env || !*env) && GetFileAttributesA(exe.c_str()) == INVALID_FILE_ATTRIBUTES)
     exe = dir + "\\bot\\bot.exe";
   if (GetFileAttributesA(exe.c_str()) == INVALID_FILE_ATTRIBUTES) return;
-  std::string cmd = "\"" + exe + "\"";
-  if (spec && *spec) {
-    cmd += " ";
-    cmd += spec;
-  }
+  std::string cmd = "\"" + exe + "\" " + spec;
   cmd += " --host 127.0.0.1 --port ";
   cmd += port;
   STARTUPINFOA si{};
@@ -71,7 +68,7 @@ void spawnBotIfNeeded() {
   if (!exe || !*exe) return;
   pid_t pid = fork();
   if (pid == 0) {
-    execl(exe, exe, spec && *spec ? spec : "mybot", "--host", "127.0.0.1", "--port", port,
+    execl(exe, exe, spec, "--host", "127.0.0.1", "--port", port,
           static_cast<char*>(nullptr));
     _exit(127);
   }

@@ -71,7 +71,7 @@ def test_cluster_groups_nearby_points():
 def _bot():
     from adjutant import Adjutant
     g = make_game(enemy_race=Race.Zerg)
-    bot = Adjutant("planned", slots={})
+    bot = Adjutant("scripted", slots={})
     rec = Recorder(enabled=False)
     rows = []
     rec.record = lambda slot, kind, frame, every=0, **data: rows.append((slot, kind, data)) or True

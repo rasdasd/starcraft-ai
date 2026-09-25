@@ -37,9 +37,9 @@ from typing import Any, Callable, Iterable, Optional
 from blackboard import Blackboard
 from blackboard.sections import Goal, Posture
 from bwbot import Race, TechType, UnitType, UpgradeType
-from mybot.opening import OpeningStep
 
 from .base import Template, workers_for
+from .opening import OpeningStep
 
 log = logging.getLogger("adjutant.builds")
 

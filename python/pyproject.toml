@@ -26,7 +26,7 @@ bwbot = "bwbot.run:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["bwbot*", "blackboard*", "adjutant*", "harness*", "mybot*", "goliath*", "sparring*"]
+include = ["bwbot*", "blackboard*", "adjutant*", "harness*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

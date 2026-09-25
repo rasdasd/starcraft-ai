@@ -1,7 +1,7 @@
 {
   "name": "goliath_1fact",
   "race": "Terran",
-  "description": "One-base goliaths (the goliath bot's opener and army as a build).",
+  "description": "One-base factory opener into a goliath-heavy army.",
   "tags": ["anti_air", "mech", "one_base"],
   "default_vs": ["Unknown"],
   "opening": [[9, "Supply_Depot"], [11, "Barracks"], [12, "Refinery"], [15, "Factory"], [16, "Supply_Depot"]],

@@ -15,7 +15,7 @@ os.environ["BWBOT_LOG"] = "0"
 def _setup(enemy_race=Race.Protoss, workers=8):
     from adjutant import Adjutant
     g = make_game(enemy_race=enemy_race)
-    bot = Adjutant("planned", slots={})
+    bot = Adjutant("scripted", slots={})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g
@@ -31,10 +31,10 @@ def _kinds(bot):
 
 
 def _queued(bot, t) -> bool:
-    """Planned at some point: owned, in production, or waiting in the production queue."""
+    """Planned: owned, in production, dispatched to a builder, or in the current plan."""
     from adjutant.components.planner import GreedyPlanner
     p = next(c for c in bot.sched.components if isinstance(c, GreedyPlanner))
-    return p.have(bot.bb, int(t)) > 0 or int(t) in bot.bb.services["production"].queue
+    return p.have(bot.bb, int(t)) > 0 or any(it.type_id == int(t) for it in bot.bb.plan.items)
 
 
 def test_worker_rush_pulls_workers_and_defends():

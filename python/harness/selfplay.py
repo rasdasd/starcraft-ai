@@ -1,6 +1,6 @@
 """Parallel headless OpenBW 1v1 games between Python bots (run inside WSL/Linux).
 
-    python -m harness.selfplay --p1 adjutant@explore --p2 goliath --p2 adjutant:Parity --games 40 --parallel 4
+    python -m harness.selfplay --p1 adjutant@explore --p2 adjutant/Zerg --p2 adjutant@search/Protoss --games 40 --parallel 4
     python -m harness.selfplay --pool pool.json --games 100 --parallel 6 --max-frames 28800
 
 Each game runs two BWAPILauncher processes that meet in an OpenBW LAN game over a private unix
@@ -13,7 +13,7 @@ score wins. A side whose brain dies loses. Everything lands in `runs/<run-id>/`:
 `results.jsonl` (one row per game, with profile names and slot/model descriptions), per-game
 launcher/brain output, recorder logs, and replays.
 
-Player syntax: `module[:Class][@profile][/Race]`, e.g. `adjutant@explore`, `sparring.zerg/Zerg`.
+Player syntax: `module[:Class][@profile][/Race]`, e.g. `adjutant@explore`, `adjutant@search/Zerg`.
 A pool file is a JSON list of {"name", "spec", "profile", "race", "env", "args", "weight"}.
 """
 from __future__ import annotations
@@ -80,7 +80,7 @@ class Player:
 
 
 def bot_race(spec: str) -> str:
-    """The bot class's `race` attribute (sparring bots declare one); Terran otherwise."""
+    """The bot class's `race` attribute, if it declares one; Terran otherwise."""
     import importlib
     mod_name, _, cls_name = spec.partition(":")
     try:

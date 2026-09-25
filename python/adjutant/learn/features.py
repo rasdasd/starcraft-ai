@@ -16,7 +16,7 @@ import numpy as np
 from blackboard import Blackboard
 from blackboard.models import FeatureSpec
 from bwbot import UnitType as U
-from mybot.opponent import OPENING_NAMES
+from ..enemy import OPENING_NAMES
 
 from ..components.meta import META_FEATURES
 from ..units import AIR_TECH, CLOAKERS

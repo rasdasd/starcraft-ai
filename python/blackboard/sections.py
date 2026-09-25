@@ -36,7 +36,6 @@ class World:
     income_minerals: float = 0.0            # per game minute, smoothed
     income_gas: float = 0.0
     army_supply: int = 0
-    state: Any = None                       # adapter hook (mybot State without enemy memory)
 
     @property
     def supply_left(self) -> int:
@@ -110,7 +109,6 @@ class Belief:
     opening_probs: dict[str, float] = field(default_factory=dict)
     staleness: dict[int, int] = field(default_factory=dict)   # base id -> frames since seen
     predicted: dict[str, Any] = field(default_factory=dict)   # learned-model outputs, if any
-    memory: Any = None                     # adapter hook (mybot Memory / OpponentSnapshot)
 
     def count(self, unit_type: int) -> float:
         return float(self.counts.get(int(unit_type), 0.0))
@@ -231,7 +229,6 @@ class Squad:
 @dataclass
 class Squads:
     squads: dict[str, Squad] = field(default_factory=dict)
-    army_order: Any = None                  # legacy Attack/Rally for adapters
 
     def get(self, name: str) -> Optional[Squad]:
         return self.squads.get(name)
@@ -243,7 +240,7 @@ class Squads:
 # ---------------------------------------------------------------------------- plan (Production)
 @dataclass
 class PlanItem:
-    kind: str                               # build | train | addon | upgrade | research
+    kind: str                               # build | expand | train | addon | upgrade | research
     type_id: int
     priority: int = 50
     reason: str = ""
@@ -254,17 +251,67 @@ class PlanItem:
 
 @dataclass
 class ProductionPlan:
+    """Everything production wants started now, highest priority first. The macro executor spends
+    in this order; a building job, once dispatched, lives until it is built or cancelled."""
     items: list[PlanItem] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
-    army_order: Any = None                  # legacy planners (GoliathPolicy) also decide Attack/Rally
-    cancel: list[int] = field(default_factory=list)   # building types whose unstarted jobs to drop
-    # the build items are the whole construction queue: types no longer planned are dropped and
-    # the queue follows plan priority (planners that re-plan every decision)
-    replace_queue: bool = False
+    cancel: list[int] = field(default_factory=list)   # building types whose unplaced jobs to drop
 
     def summary(self) -> str:
         head = self.items[:4]
         return " ".join(f"{i.kind[0]}{i.type_id}@{i.priority}" for i in head) or "-"
+
+
+# ---------------------------------------------------------------------------- macro (Macro executor)
+@dataclass
+class OwnBase:
+    base_id: int
+    tile: tuple[int, int]                   # hall top-left
+    center: tuple[int, int]                 # pixels
+    completed: bool                         # hall finished (else under construction)
+    patches: int = 0                        # mineral fields left
+    minerals: int = 0                       # minerals left in them
+    geysers: int = 0                        # geysers, with or without a refinery
+    refineries: int = 0                     # our completed refineries
+    miners: int = 0
+    gas_workers: int = 0
+
+    @property
+    def saturation(self) -> float:
+        return self.miners / (2 * self.patches) if self.patches else 1.0
+
+
+@dataclass
+class MacroState:
+    bases: list[OwnBase] = field(default_factory=list)   # our halls at BWEM bases (not macro hatcheries)
+    pending: dict[int, int] = field(default_factory=dict)   # building jobs dispatched but not placed yet
+    jobs: list[str] = field(default_factory=list)            # "Type:status" per job, for logs
+    reserved: tuple[int, int] = (0, 0)       # money held for dispatched, unplaced jobs
+    next_base: Optional[int] = None          # base id an "expand" item would go to
+    expanding: Optional[int] = None          # base id of the expansion job in flight, if any
+    worker_target: int = 0                   # 2 per mineral patch + 3 per refinery at our bases
+    blocked: list[str] = field(default_factory=list)         # plan items skipped last decision, and why
+
+    def pending_count(self, unit_type: int) -> int:
+        return int(self.pending.get(int(unit_type), 0))
+
+    @property
+    def mining_bases(self) -> int:
+        return sum(1 for b in self.bases if b.completed and b.patches > 0)
+
+    @property
+    def base_count(self) -> int:
+        """Bases with minerals left, counting ones under construction and an expansion in flight."""
+        n = sum(1 for b in self.bases if b.patches > 0)
+        return n + (1 if self.expanding is not None and all(b.base_id != self.expanding for b in self.bases) else 0)
+
+    @property
+    def geysers(self) -> int:
+        return sum(b.geysers for b in self.bases)
+
+    def summary(self) -> str:
+        sat = " ".join(f"{b.base_id}:{b.miners}/{2 * b.patches}" for b in self.bases)
+        return f"bases {sat or '-'} jobs {','.join(self.jobs) or '-'} next {self.next_base}"
 
 
 # ---------------------------------------------------------------------------- scouting
@@ -299,6 +346,7 @@ STANDARD_SCHEMA: dict[str, type] = {
     "engagements": Engagements,
     "squads": Squads,
     "plan": ProductionPlan,
+    "macro": MacroState,
     "scouting": ScoutingState,
     "truth": Truth,
 }

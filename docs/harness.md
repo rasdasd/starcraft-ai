@@ -11,11 +11,11 @@ Fast (about 1500 frames/s per game) and parallel. Every player is a Python bot f
 ```
 # inside WSL, after scripts/setup_wsl.sh
 cd /mnt/c/starcraft-ai/python
-~/.venvs/bwbot/bin/python -m harness.selfplay --p1 adjutant --p2 goliath --p2 sparring.zerg:Pool --games 40 --parallel 4
+~/.venvs/bwbot/bin/python -m harness.selfplay --p1 adjutant --p2 adjutant/Zerg --p2 adjutant@search/Protoss --games 40 --parallel 4
 ```
 
-- Player syntax: `module[:Class][@profile][/Race]`, e.g. `adjutant@explore`, `sparring.protoss:Dragoon`.
-  The race defaults to the bot class's `race` attribute (sparring bots set it), else Terran.
+- Player syntax: `module[:Class][@profile][/Race]`, e.g. `adjutant@explore`, `adjutant/Protoss`.
+  The race defaults to Terran.
 - `--pool pool.json`: a list of `{"name", "spec", "profile", "race", "env", "args", "weight"}`.
 - `--max-frames` (default 20 game minutes): at the limit both brains leave and the higher score
   wins. OpenBW keeps no BWAPI score during the game, so `harness.brain` uses a material score
@@ -26,11 +26,6 @@ cd /mnt/c/starcraft-ai/python
 Mechanics: two `BWAPILauncher` processes per game meet in an OpenBW LAN game over a private unix
 socket (`OPENBW_LAN_MODE=LOCAL`, `OPENBW_LOCAL_PATH`), each hosting the shim module on its own
 port with `BWBOT_NO_SPAWN=1`; the harness starts one `python -m harness.brain` per side.
-
-### Sparring bots
-
-`sparring.zerg` (9-pool speedlings), `sparring.zerg:Hydra`, `sparring.protoss` (2-gate zealots),
-`sparring.protoss:Dragoon`. Small scripted bots that give self-play Zerg and Protoss opponents.
 
 ## Published bots under Wine in WSL (fast, parallel)
 

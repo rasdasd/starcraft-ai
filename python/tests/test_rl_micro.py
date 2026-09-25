@@ -19,7 +19,7 @@ os.environ["BWBOT_LOG"] = "0"
 def _bot(micro: dict):
     from adjutant import Adjutant
     g = make_game(enemy_race=Race.Zerg)
-    bot = Adjutant("planned", slots={"strategy": {"impl": "FixedPosture", "stance": "hold"},
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "FixedPosture", "stance": "hold"},
                                      "micro": {"impl": "RLMicro", **micro}})
     rec = Recorder(enabled=False)
     rows = []

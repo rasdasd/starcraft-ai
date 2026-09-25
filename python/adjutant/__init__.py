@@ -1,10 +1,10 @@
 """Adjutant: a StarCraft bot on the blackboard framework, with swappable scripted/learned slots.
 
     python run.py --bot adjutant                 # default profile
-    python run.py --bot adjutant:Parity          # goliath-equivalent adapters
+    python run.py --bot adjutant --profile search
     BWBOT_PROFILE_FILE=overrides.json python run.py --bot adjutant
 
-Profiles live in `adjutant.profiles`; each subclass below just names one.
+Profiles live in `adjutant.profiles`.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Optional
 
 from blackboard import BlackboardBot
 from blackboard.profile import apply_env_override, build, resolve
-from bwbot import ClientConfig, Race
+from bwbot import ClientConfig
 
 from .profiles import BUILTINS
 
@@ -47,20 +47,7 @@ class Adjutant(BlackboardBot):
             spec = deep_merge(spec, self._overrides)
         return spec
 
-    def on_start(self, game) -> None:
-        """`race_profiles` ({race name: profile}) swaps in another profile for our race."""
-        other = self.spec.get("race_profiles", {}).get(Race(int(game.self_race)).name)
-        if other:
-            log.info("race %s: profile %s", Race(int(game.self_race)).name, other)
-            self.spec = self._resolve(other)
-            self.name = f"adjutant:{self.spec.get('name', other)}"
-        super().on_start(game)
-
-
-class Parity(Adjutant):
-    profile = "parity"
-
 
 BOT = Adjutant
 
-__all__ = ["Adjutant", "BOT", "Parity"]
+__all__ = ["Adjutant", "BOT"]

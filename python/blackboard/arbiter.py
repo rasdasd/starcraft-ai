@@ -99,6 +99,14 @@ class UnitLeases:
         if cur is not None and (owner is None or cur.owner == owner):
             del self._leases[int(uid)]
 
+    def hold(self, owner: str, ids: Iterable[int], priority: int, purpose: str = "", frame: int = 0) -> set[int]:
+        """Make `ids` exactly the units `owner` leases: lease them, release the rest. Returns the
+        ids actually held (a unit leased by someone at equal or higher priority is skipped)."""
+        held = {int(u) for u in ids if self.lease(u, owner, priority, purpose, frame)}
+        for uid in self.owned(owner) - held:
+            del self._leases[uid]
+        return held
+
     def release_owner(self, owner: str) -> None:
         for uid in [u for u, l in self._leases.items() if l.owner == owner]:
             del self._leases[uid]

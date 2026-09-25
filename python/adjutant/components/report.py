@@ -9,7 +9,7 @@ from blackboard.profile import register
 @register("Snapshots")
 class Snapshots(Component):
     phase = Phase.REPORT
-    reads = ("world", "belief", "strategy", "squads", "truth", "plan")
+    reads = ("world", "belief", "strategy", "squads", "truth", "plan", "macro")
     period_frames = 24 * 10
 
     def tick(self, bb: Blackboard) -> None:
@@ -25,11 +25,11 @@ class Snapshots(Component):
             notes=list(bb.plan.notes)[:6],
             own={_short(bb, t): int(n) for t, n in enumerate(w.counts) if n},
         )
-        bm, pm = bb.services.get("buildings"), bb.services.get("production")
-        if bm is not None:
-            row["jobs"] = [f"{_short(bb, t.unit_type)}:{t.status}" for t in bm.tasks]
-        if pm is not None:
-            row["queue"] = [_short(bb, t) for t in getattr(pm, "queue", [])]
+        m = bb.macro
+        row["jobs"] = list(m.jobs)
+        row["blocked"] = list(m.blocked)[:6]
+        row["sat"] = [[b.base_id, b.miners, 2 * b.patches, b.gas_workers] for b in m.bases]
+        row["mbases"] = m.base_count
         t = bb.truth
         if t.enabled:
             row["t_counts"] = {str(k): v for k, v in t.counts.items()}

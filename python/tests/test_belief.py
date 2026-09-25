@@ -12,7 +12,7 @@ os.environ["BWBOT_LOG"] = "0"
 def _setup(n_starts=2, enemy=Race.Zerg):
     from adjutant import Adjutant
     g = make_game(enemy_race=enemy, n_starts=n_starts)
-    bot = Adjutant("planned")
+    bot = Adjutant("scripted")
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g
@@ -79,5 +79,4 @@ def test_opening_probs_rush():
     assert b.opening == "rush"
     assert max(b.opening_probs, key=b.opening_probs.get) == "rush"
     assert abs(sum(b.opening_probs.values()) - 1) < 0.01
-    assert bot.bb.services["info"] is not None
     assert all(s.failures == 0 for s in bot.sched.stats.values())

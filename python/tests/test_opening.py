@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from bwbot import UnitType as U
-from mybot.opening import Opening, OpeningStep
+from adjutant.strategies.opening import Opening, OpeningStep
 
 
 def _state(counts: dict, supply: int):

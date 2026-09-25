@@ -86,7 +86,7 @@ def test_search_beats_or_matches_both_greedy_policies():
 def _play(template, minutes, workers=6):
     from adjutant import Adjutant
     g = make_game()
-    bot = Adjutant("planned", slots={"strategy": {"impl": "ScriptedStrategy", "template": template},
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "ScriptedStrategy", "template": template},
                                      "production": {"impl": "SearchPlanner", "budget_ms": 5.0}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True

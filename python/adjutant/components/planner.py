@@ -4,8 +4,9 @@ Each decision it rewrites `plan.items` in priority order:
   supply (projected from production capacity) > opening step > workers > missing prerequisites >
   goal buildings / expansions / addons > upgrades and research > army trains.
 Army trains only spend what is left after reserving the cost of the next unstarted building and
-of ready upgrades/research/addons, so production does not starve tech. Builds are only emitted
-once their own prerequisites are complete, so the executor's queue head never blocks on them.
+of ready upgrades/research/addons, so production does not starve tech. Counts include the macro
+executor's dispatched jobs (`macro.pending`); expansions are `expand` items (the executor picks the
+base) while `macro.base_count` is below the goal.
 """
 from __future__ import annotations
 
@@ -43,7 +44,7 @@ P_ARMY_URGENT = Priority.PRODUCTION + 7
 @register("GreedyPlanner")
 class GreedyPlanner(Component):
     phase = Phase.PLAN
-    reads = ("world", "meta", "belief", "strategy", "threats")
+    reads = ("world", "meta", "belief", "strategy", "threats", "macro")
     writes = ("plan",)
 
     def __init__(self, supply_lead: float = 1.0, max_supply: int = 200, army_from_min: float = 3.0,
@@ -62,15 +63,15 @@ class GreedyPlanner(Component):
         self.enemy_army_factor = enemy_army_factor   # ... and at least this x the known enemy army
 
     # ------------------------------------------------------------------ helpers
-    def _queued(self, bb: Blackboard, t: int) -> int:
-        """Building jobs of type t that a worker has taken but not started. The construction
-        queue itself is rebuilt from this plan every decision (`replace_queue`), so it is not counted."""
-        bm = bb.services.get("buildings")
-        return bm.starting_count(t) if bm is not None else 0
-
     def have(self, bb: Blackboard, t: int) -> int:
-        """Owned (incl. in production) + taken by a worker but not placed yet."""
-        return bb.world.count(t) + self._queued(bb, t)
+        """Owned (incl. in production) + dispatched to a builder but not placed yet."""
+        return bb.world.count(t) + bb.macro.pending_count(t)
+
+    def bases(self, bb: Blackboard, hall: Optional[int]) -> int:
+        """Mining bases, including one being taken (the tracker has none before the first update)."""
+        if bb.macro.bases or hall is None:
+            return bb.macro.base_count
+        return self.have(bb, hall)
 
     def done(self, bb: Blackboard, t: int) -> int:
         return bb.world.count_completed(t)
@@ -107,10 +108,8 @@ class GreedyPlanner(Component):
                 return
             emitted.add((kind, t))
             items.append(PlanItem(kind, int(t), int(prio), reason, count, near, exact))
-            if kind == "build":
-                bm = bb.services.get("buildings")
-                started = bm is not None and any(tk.unit_type == t for tk in bm.tasks)
-                if not started and not first_build_reserved[0]:
+            if kind in ("build", "expand"):
+                if not bb.macro.pending_count(t) and not first_build_reserved[0]:
                     m, g = tree.cost(t)
                     reserve[0] += m
                     reserve[1] += g
@@ -142,8 +141,8 @@ class GreedyPlanner(Component):
             if self._reqs_done(bb, tree, tree.unit_requires(t)):
                 if not tree.is_building(t):
                     add("train", t, P_OPENING, "opening", cost=tree.cost(t))
-                elif t == hall and self.done(bb, hall) > 0 and (tile := self.next_base(bb)) is not None:
-                    add("build", t, P_OPENING, "opening expand", near=tile, exact=True)
+                elif t == hall and self.done(bb, hall) > 0:
+                    add("expand", t, P_OPENING, "opening expand")
                 else:
                     add("build", t, P_OPENING, "opening")
 
@@ -207,15 +206,13 @@ class GreedyPlanner(Component):
                     add("build", t, P_CHAIN, "prereq")
                 notes.append(f"prereq {bb.game.type_name(t)}")
             # 5. expansions
-            bases_now = self.have(bb, hall) if hall is not None else 1
+            bases_now = self.bases(bb, hall)
             if hall is not None and goal.bases > bases_now and not cancel_hall and hall not in later:
-                tile = self.next_base(bb)
-                if tile is not None:
-                    add("build", hall, P_EXPAND, "expand", near=tile, exact=True)
-                    notes.append(f"expand {tile}")
+                add("expand", hall, P_EXPAND, "expand")
+                notes.append(f"expand {bases_now}->{goal.bases}")
 
             # 6. goal buildings
-            geysers = self.owned_geysers(bb)
+            geysers = max(1, bb.macro.geysers)
             for t, n in goal.buildings.items():
                 if t == refinery:
                     n = min(n, geysers)
@@ -255,9 +252,7 @@ class GreedyPlanner(Component):
         plan = bb.plan
         plan.items = items
         plan.notes = notes
-        plan.army_order = None
         plan.cancel = cancels
-        plan.replace_queue = True
 
     # ------------------------------------------------------------------ pieces
     def _requests(self, bb: Blackboard, tree: TechTree, add, worker) -> list[int]:
@@ -303,8 +298,7 @@ class GreedyPlanner(Component):
 
     def _need_supply(self, bb: Blackboard, tree: TechTree, supply_t: int, hall: Optional[int]) -> bool:
         w = bb.world
-        bm = bb.services.get("buildings")
-        pending = w.count(supply_t) - self.done(bb, supply_t) + (bm.starting_count(supply_t) if bm else 0)
+        pending = w.count(supply_t) - self.done(bb, supply_t) + bb.macro.pending_count(supply_t)
         provided = int(bb.game.unit_types["supply_provided"][supply_t]) // 2
         future = w.supply_left + pending * provided
         if hall is not None:
@@ -337,8 +331,8 @@ class GreedyPlanner(Component):
         """Goal-mix trains on free producers. Returns the (minerals, gas, supply) left and the
         producer slots used, per producer type."""
         w = bb.world
-        minerals = w.minerals - reserve[0]
-        gas = w.gas - reserve[1]
+        minerals = w.minerals - bb.macro.reserved[0] - reserve[0]
+        gas = w.gas - bb.macro.reserved[1] - reserve[1]
         supply = w.supply_left
         by_producer: dict[int, list[int]] = {}
         for t, n in goal.units.items():
@@ -413,36 +407,6 @@ class GreedyPlanner(Component):
                 minerals, supply, n = minerals - m, supply - tree.supply(pick), n + 1
             if n:
                 add("train", pick, prio, "filler", count=n, cost=(m * n, 0))
-
-    def owned_geysers(self, bb: Blackboard) -> int:
-        total = 0
-        for base in bb.game.bases:
-            cx, cy = base.center
-            if any((cx - x) ** 2 + (cy - y) ** 2 < (8 * 32) ** 2 for x, y in bb.world.depots):
-                total += base.geysers
-        return max(total, 1)
-
-    def next_base(self, bb: Blackboard) -> Optional[tuple[int, int]]:
-        """Closest free base to the main (the natural first), not near a known enemy base."""
-        g = bb.game
-        mx, my = bb.world.main_tile
-        enemy = [b.tile for b in bb.belief.bases if b.alive]
-        best, best_d = None, None
-        for base in g.bases:
-            cx, cy = base.center
-            if any((cx - x) ** 2 + (cy - y) ** 2 < (8 * 32) ** 2 for x, y in bb.world.depots):
-                continue
-            tx, ty = base.tile
-            if any((tx - ex) ** 2 + (ty - ey) ** 2 < 12 ** 2 for ex, ey in enemy):
-                continue
-            if base.minerals <= 0:
-                continue
-            d = (tx - mx) ** 2 + (ty - my) ** 2
-            if base.id == g.self_natural_id:
-                d = -1
-            if best_d is None or d < best_d:
-                best, best_d = (int(tx), int(ty)), d
-        return best
 
     def summary(self) -> str:
         return "greedy"

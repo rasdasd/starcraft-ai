@@ -9,10 +9,9 @@ from harness.selfplay import Player, judge, schedule
 def test_player_parse():
     p = Player.parse("adjutant@explore/Terran")
     assert (p.spec, p.profile, p.race, p.name) == ("adjutant", "explore", "Terran", "adjutant@explore")
-    z = Player.parse("sparring.zerg:Pool/Zerg")
-    assert (z.spec, z.profile, z.race) == ("sparring.zerg:Pool", None, "Zerg")
-    assert Player.parse("sparring.protoss:Dragoon").race == "Protoss"
-    assert Player.parse("goliath").race == "Terran"
+    z = Player.parse("adjutant:Adjutant@search/Zerg")
+    assert (z.spec, z.profile, z.race) == ("adjutant:Adjutant", "search", "Zerg")
+    assert Player.parse("adjutant").race == "Terran"
 
 
 def test_judge():
@@ -28,11 +27,11 @@ def test_judge():
 
 
 def test_schedule_alternates_maps_and_samples_pool():
-    args = argparse.Namespace(pool=None, p1=["adjutant"], p2=["goliath", "mybot"], games=6,
+    args = argparse.Namespace(pool=None, p1=["adjutant"], p2=["adjutant@search/Zerg", "adjutant/Protoss"], games=6,
                               maps=["m1", "m2"], swap=False)
     games = schedule(args, random.Random(1))
     assert [g.map for g in games] == ["m1", "m2"] * 3
-    assert all(g.a.spec == "adjutant" and g.b.spec in ("goliath", "mybot") for g in games)
+    assert all(g.a.spec == "adjutant" and g.b.race in ("Zerg", "Protoss") for g in games)
 
 
 def _row(winner, a="adj", b="gol", map_="maps/(2)X.scx", template="goliath_1fact", reason="elimination"):

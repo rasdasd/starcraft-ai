@@ -26,7 +26,6 @@ from bwbot.enums import Order, TechType, UnitType as U
 from bwbot.observation import UnitFlag, UnitTypeFlag
 
 from .. import engage as E
-from .executors import _sync_leases
 
 TANK, SIEGED = int(U.Terran_Siege_Tank_Tank_Mode), int(U.Terran_Siege_Tank_Siege_Mode)
 STATIC_POINTS = ("hold", "defend", "contain")
@@ -74,7 +73,7 @@ class Micro(Component):
 
         squads = bb.squads.squads
         owned = set().union(*(s.units for s in squads.values())) if squads else set()
-        _sync_leases(bb, self.slot, owned, self.priority, "squad")
+        bb.leases.hold(self.slot, owned, self.priority, "squad", bb.frame)
         if not owned:
             return
         by_id = {uid: u for uid in owned if (u := obs.unit(uid)) is not None}

@@ -20,8 +20,6 @@ from typing import Optional
 from blackboard import Blackboard, Phase, Priority
 from blackboard.profile import register
 from blackboard.sections import PlanItem
-from mybot.buildings import CONSTRUCTING
-
 from ..buildsearch import BuildSearch, Target
 from ..econsim import Action, EconSim
 from .planner import HALL, P_SUPPLY, REFINERY, SUPPLY, WORKER, GreedyPlanner
@@ -76,19 +74,14 @@ class SearchPlanner(GreedyPlanner):
 
     def _search(self, bb: Blackboard) -> None:
         s = self.sim.from_game(bb)
-        bm, prod = bb.services.get("buildings"), bb.services.get("production")
-        if bm is not None:
-            for task in bm.tasks:
-                if task.status == CONSTRUCTING:        # already a unit in the world
-                    continue
-                s.started[task.unit_type] = s.started.get(task.unit_type, 0) + 1
-                self.sim._push(s, bb.frame + self.sim.travel + self.tree.time(task.unit_type), "unit",
-                               task.unit_type, 0)
-            s.minerals -= bm.reserved_minerals(bb.game)
-            s.gas -= bm.reserved_gas(bb.game)
-        forced = [Action("unit", int(t)) for t in (prod.queue if prod is not None else [])]
+        for t, n in bb.macro.pending.items():         # dispatched, not placed: paid for in the sim
+            s.started[t] = s.started.get(t, 0) + n
+            for _ in range(n):
+                self.sim._push(s, bb.frame + self.sim.travel + self.tree.time(t), "unit", t, 0)
+        s.minerals -= bb.macro.reserved[0]
+        s.gas -= bb.macro.reserved[1]
         target = self.target(bb, s)
-        self.best = self.search.search(s, target, self.budget_ms, forced=forced)
+        self.best = self.search.search(s, target, self.budget_ms)
         self.target_ = target
         st = self.stats
         st["searches"] += 1
@@ -119,9 +112,9 @@ class SearchPlanner(GreedyPlanner):
             for t, n in army.items():
                 want(t, n)
         want(worker, min(goal.workers, s.started.get(worker, 0) + self.worker_chunk))
-        if goal.bases > len(w.depots) + (s.started.get(hall, 0) - s.done.get(hall, 0)):
+        if goal.bases > self.bases(bb, hall):
             want(hall, s.started.get(hall, 0) + 1)
-        geysers = self.owned_geysers(bb)
+        geysers = max(1, bb.macro.geysers)
         for t, n in goal.buildings.items():
             want(t, min(n, geysers) if t == refinery else n)
         for t, n in goal.addons.items():
@@ -201,8 +194,7 @@ class SearchPlanner(GreedyPlanner):
                 if a.type_id == hall:
                     if hall in cancels:
                         continue
-                    tile = self.next_base(bb)
-                    add("build", hall, p, "search expand", near=tile, exact=tile is not None)
+                    add("expand", hall, p, "search expand")
                 else:
                     add("build", a.type_id, p, "search")
             else:
@@ -217,9 +209,7 @@ class SearchPlanner(GreedyPlanner):
                       f"{len(best.steps) if best else 0} steps"]
         if best:
             plan.notes += [f"{self._name(a)}+{f - bb.frame}" for a, f in best.steps[:4]]
-        plan.army_order = None
         plan.cancel = cancels
-        plan.replace_queue = True
 
     def _name(self, a: Action) -> str:
         if a.kind == "unit":

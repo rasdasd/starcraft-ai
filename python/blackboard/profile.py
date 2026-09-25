@@ -2,7 +2,7 @@
 
 A profile is plain data:
 
-    {"name": "adjutant", "base": "parity",            # optional inheritance
+    {"name": "mine", "base": "adjutant",                # optional inheritance
      "slots": {"strategy": {"impl": "LearnedStrategy", "model": "strategy.npz", "mode": "blend",
                              "fallback": {"impl": "RuleSelector"}},
                "tactics": null},                      # null removes a slot from the base

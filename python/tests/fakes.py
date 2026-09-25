@@ -229,6 +229,7 @@ class FakeWorld:
     events: list[Event] = field(default_factory=list)
     next_id: int = 1
     tiles: Optional[np.ndarray] = None       # per-tile TileFlag bytes; None = everything visible
+    gathered: list[int] = field(default_factory=lambda: [0, 0])   # minerals, gas mined so far
 
     def add(self, unit_type: int, x: int, y: int, player: int = 0, completed: bool = True, idle: bool = True,
             **kw) -> int:
@@ -299,7 +300,8 @@ class FakeWorld:
         res = np.zeros(int(TechType.MAX), np.uint8)
         for k in self.techs:
             res[int(k)] = 1
-        me = PlayerState(g.self_id, self.minerals, self.gas, 0, 0, supply_used, min(400, supply_total), False, False,
+        me = PlayerState(g.self_id, self.minerals, self.gas, self.gathered[0], self.gathered[1], supply_used,
+                         min(400, supply_total), False, False,
                          False, all_c, done_c, np.zeros(N_TYPES, np.int32), np.zeros(N_TYPES, np.int32), up, res,
                          np.zeros(int(TechType.MAX), np.uint8), np.zeros(int(UpgradeType.MAX), np.uint8),
                          0, 0, 0, 0, 0)
@@ -459,9 +461,11 @@ class Sim:
             self.fg += n_gas * GAS_RATE
             if self.fm >= 1:
                 w.minerals += int(self.fm)
+                w.gathered[0] += int(self.fm)
                 self.fm -= int(self.fm)
             if self.fg >= 1:
                 w.gas += int(self.fg)
+                w.gathered[1] += int(self.fg)
                 self.fg -= int(self.fg)
             if w.frame % 342 == 0:
                 self._spawn_larva()

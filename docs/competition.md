@@ -5,7 +5,7 @@ submission is **two processes**:
 
 1. `BotName.dll` — `shim_module.dll` renamed. It is the AI module, runs BWEM, and talks FlatBuffers
    over `127.0.0.1`.
-2. `bot.exe` — frozen 64-bit Python (`mybot` or `goliath`). The DLL starts it unless
+2. `bot.exe` — frozen 64-bit Python (Adjutant). The DLL starts it unless
    `run_proxy.bat` already did.
 
 BWEB is not included. Walls are not the limiter yet.
@@ -37,8 +37,8 @@ not `cd`.
 From the repo root, after `scripts\setup_windows.ps1` and `scripts\build_shim.ps1`:
 
 ```
-scripts\pack_competition.ps1                  # BotName=bwbot, policy=mybot
-scripts\pack_competition.ps1 -Name Goliath -Bot goliath
+scripts\pack_competition.ps1                  # BotName=bwbot, bot=adjutant
+scripts\pack_competition.ps1 -Name Adjutant
 ```
 
 Output: `dist/competition/<Name>/`. Zip that folder (and a copy of this source tree) for the
@@ -50,18 +50,19 @@ organizers.
 |---|---|
 | `BWBOT_PORT` | TCP port (default 8765) |
 | `BWBOT_BOT` | path to the frozen bot if it is not next to the DLL |
-| `BWBOT_BOT_SPEC` | module passed to `bot.exe` (`mybot` or `goliath`) |
+| `BWBOT_BOT_SPEC` | module passed to `bot.exe` (default `adjutant`) |
+| `BWBOT_PROFILE` | Adjutant profile (default `adjutant`) |
 | `BWBOT_NO_SPAWN` | set to `1` if `run_proxy.bat` already started the bot |
 
 The DLL looks for `bot.exe` then `bot\bot.exe` in its own directory.
 
 ## What to tell the organizers
 
-- Race: Terran
+- Race: Terran, Protoss or Zerg (the bot plays whichever race it is given)
 - BWAPI: 4.4.0
 - Bot type: AIModule DLL + proxy Python brain
-- Learns using file I/O: optional. Logs go to `bwapi-data/write/bwbot-logs/`. A fitted
-  `policy.npz` can be placed in `bwapi-data/read/` or pointed at with `BWBOT_MODEL`.
+- Learns using file I/O: optional. Logs go to `bwapi-data/write/adjutant-logs/`. Fitted models
+  (`*.npz`) are read from `bwapi-data/read/`.
 - Libraries: BWAPI 4.4.0 (vendored), BWEM-community (MIT/X11, Igor Dimitrijevic), FlatBuffers,
   numpy. Not a Steamhammer / UAlbertaBot fork.
 - Compile: Visual Studio 2022 C++ (Win32), CMake, Ninja. `scripts\build_shim.ps1`. Python 3.12 x64

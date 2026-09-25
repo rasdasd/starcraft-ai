@@ -3,7 +3,7 @@
 Python side of the Brood War bot environment. See the repository root `README.md` for setup.
 
 ```
-python -m bwbot.run examples.basic_terran --frame-skip 2 --speed 0
+python -m bwbot.run adjutant --frame-skip 2 --speed 0
 ```
 
 Optional ML extras (none required by the core):

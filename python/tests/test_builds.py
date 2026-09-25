@@ -41,7 +41,7 @@ def test_spec_errors_are_reported():
 
 def _bot(template, race=Race.Terran, enemy=Race.Zerg):
     from adjutant import Adjutant
-    bot = Adjutant("planned", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     g = make_game(self_race=race, enemy_race=enemy)

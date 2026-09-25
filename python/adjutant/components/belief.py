@@ -1,11 +1,7 @@
-"""Belief implementations.
-
-`LegacyBelief` wraps mybot's InformationManager + OpponentModel.
-`ScriptedBelief` (v2) keeps those (fog memory, `services["info"]` for the legacy scout/combat,
-opening classification) and adds: per-id unit tracking with kills from UnitDestroy, tech inferred
-through the tech tree (a Vulture implies Factory and Barracks), enemy bases over BWEM bases with
-start-location elimination, per-base staleness, soft opening probabilities and the enemy army's
-last position.
+"""Belief (scripted): fog memory and opening classification (`adjutant.enemy`), plus per-id unit
+tracking with kills from UnitDestroy, tech inferred through the tech tree (a Vulture implies Factory
+and Barracks), enemy bases over BWEM bases with start-location elimination, per-base staleness, soft
+opening probabilities and the enemy army's last position.
 """
 from __future__ import annotations
 
@@ -18,60 +14,10 @@ from blackboard.profile import register
 from blackboard.sections import EnemyBase
 from bwbot import EventType, Race, UnitType as U
 from bwbot.observation import UnitTypeFlag
-from mybot.information import RESOURCE_DEPOTS, InformationManager
-from mybot.opponent import OPENING_NAMES, RUSH_WINDOW, OpponentModel
 
+from ..enemy import OPENING_NAMES, RESOURCE_DEPOTS, RUSH_WINDOW, FogMemory, OpeningModel
 from ..techtree import TechTree
-from ..units import AIR_COMBAT, AIR_TECH, CLOAKERS
-
-
-@register("LegacyBelief")
-class LegacyBelief(Component):
-    phase = Phase.SENSE
-    reads = ("world",)
-    writes = ("belief",)
-    order = 20
-
-    def __init__(self) -> None:
-        self.info = InformationManager()
-        self.opponent = OpponentModel()
-
-    def on_start(self, bb: Blackboard) -> None:
-        self.info.on_start(bb.game)
-        self.opponent.on_start(bb.game)
-        bb.services["info"] = self.info
-        b = bb.belief
-        b.enemy_start = self.info.enemy_start
-        b.start_candidates = {tuple(s): 1.0 / max(1, len(self.info.other_starts)) for s in self.info.other_starts}
-
-    def tick(self, bb: Blackboard) -> None:
-        obs, game = bb.obs, bb.game
-        prev_start = self.info.enemy_start
-        self.info.update(obs, game)
-        self.opponent.update(obs, game, self.info)
-        snap = self.opponent.snapshot()
-        b = bb.belief
-        prev_open = b.opening
-        b.enemy_race = snap.race
-        b.enemy_start = self.info.enemy_start
-        b.buildings = self.info.buildings()
-        b.counts = {int(t): float(n) for t, n in snap.counts.items()}
-        b.first_seen = dict(self.opponent.first)
-        b.tech = {t for t, _, _ in b.buildings} | {
-            int(t) for t in snap.counts if int(game.unit_types["flags"][int(t)]) & UnitTypeFlag.Building}
-        b.air = float(snap.air_units)
-        b.army_supply = float(snap.ground_army + snap.air_units)
-        b.proxy = snap.proxy
-        b.opening = OPENING_NAMES[snap.opening] if 0 <= snap.opening < len(OPENING_NAMES) else "unknown"
-        b.memory = snap
-        if self.info.has_enemy_base() and self.info.enemy_start != prev_start:
-            bb.raise_event("enemy_base_found")
-        if b.opening != prev_open:
-            bb.raise_event("opening_changed")
-        if "enemy_air" not in bb.stats and any(int(t) in AIR_COMBAT or int(t) in AIR_TECH
-                                               for t, n in snap.counts.items() if n):
-            bb.stats["enemy_air"] = bb.frame
-            bb.raise_event("enemy_air")
+from ..units import AIR_COMBAT, CLOAKERS
 
 
 @dataclass
@@ -132,23 +78,20 @@ def _opening_scores(b, race: int, first: dict[int, int], counts: dict[int, float
 
 @register("ScriptedBelief")
 class ScriptedBelief(Component):
-    """Belief v2 (see module doc). Also registers `services["info"]` like LegacyBelief."""
-
     phase = Phase.SENSE
     reads = ("world", "meta")
     writes = ("belief",)
     order = 20
 
     def __init__(self, temperature: float = 1.0) -> None:
-        self.info = InformationManager()
-        self.opponent = OpponentModel()
+        self.info = FogMemory()
+        self.opponent = OpeningModel()
         self.temperature = temperature
 
     def on_start(self, bb: Blackboard) -> None:
         g = bb.game
         self.info.on_start(g)
         self.opponent.on_start(g)
-        bb.services["info"] = self.info
         self.tree = TechTree(g)
         self.tracks: dict[int, Track] = {}
         self.dead: dict[int, int] = {}
@@ -225,8 +168,7 @@ class ScriptedBelief(Component):
         b.cloak = any(t in CLOAKERS and t != int(U.Protoss_Observer) for t in self.first) or \
             any(t in b.tech for t in (int(U.Protoss_Templar_Archives), int(U.Terran_Covert_Ops),
                                        int(U.Protoss_Arbiter_Tribunal)))
-        snap = self.opponent.snapshot()
-        b.opening = OPENING_NAMES[snap.opening] if 0 <= snap.opening < len(OPENING_NAMES) else "unknown"
+        b.opening = self.opponent.opening()
         scores = _opening_scores(b, b.enemy_race, self.first, counts, frame)
         if b.opening in scores:
             scores[b.opening] += 1.0
@@ -236,7 +178,6 @@ class ScriptedBelief(Component):
         b.opening_probs = {k: round(float(v), 3) for k, v in zip(scores, p)}
         b.bases = sorted(self.enemy_bases.values(), key=lambda e: e.base_id)
         b.staleness = {bid: (frame - f if f >= 0 else frame) for bid, f in self.base_seen.items()}
-        b.memory = snap
 
         if self.info.enemy_start != prev[1] and self.info.has_enemy_base():
             bb.raise_event("enemy_base_found")

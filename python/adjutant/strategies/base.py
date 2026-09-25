@@ -13,7 +13,8 @@ from typing import Sequence
 from blackboard import Blackboard
 from blackboard.sections import Goal, Posture
 from bwbot import Race, UnitType as U
-from mybot.opening import OpeningStep
+
+from .opening import OpeningStep
 
 
 class Template:

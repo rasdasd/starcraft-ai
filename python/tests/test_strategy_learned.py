@@ -13,7 +13,7 @@ from fakes import FakeWorld, Sim, make_game
 os.environ["BWBOT_LOG"] = "0"
 
 
-def _bot(profile="planned", strategy=None, recorder=None, enemy=Race.Zerg):
+def _bot(profile="scripted", strategy=None, recorder=None, enemy=Race.Zerg):
     from adjutant import Adjutant
     slots = {"strategy": strategy} if strategy else {}
     bot = Adjutant(profile, slots=slots)

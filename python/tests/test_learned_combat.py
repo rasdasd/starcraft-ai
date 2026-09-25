@@ -21,7 +21,7 @@ def _bot(slots=None, stance="hold"):
     from adjutant import Adjutant
     g = make_game(enemy_race=Race.Zerg)
     slots = {"strategy": {"impl": "FixedPosture", "stance": stance}, **(slots or {})}
-    bot = Adjutant("planned", slots=slots)
+    bot = Adjutant("scripted", slots=slots)
     rec = Recorder(enabled=False)
     rows = []
     rec.record = lambda slot, kind, frame, every=0, **data: rows.append((slot, kind, dict(data, f=frame))) or True

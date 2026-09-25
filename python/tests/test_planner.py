@@ -11,7 +11,7 @@ os.environ["BWBOT_LOG"] = "0"
 
 def _bot(template):
     from adjutant import Adjutant
-    bot = Adjutant("planned", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     return bot
@@ -86,8 +86,7 @@ def test_bio_builds_rax_academy_and_stim():
     assert [it.priority for it in items] == sorted((it.priority for it in items), reverse=True)
 
 
-def test_construction_queue_follows_the_current_plan():
-    """Builds planned on frame 0 (before the opening takes over) must not wait at the head of the queue."""
+def test_dispatched_jobs_are_counted_so_nothing_is_built_twice():
     g = make_game()
     bot = _bot("mech_expand")
     w = FakeWorld(g, minerals=50)
@@ -95,14 +94,15 @@ def test_construction_queue_follows_the_current_plan():
     bot.game = g
     bot.on_start(g)
     sim = Sim(w)
+    planner = next(c for c in bot.sched.components if isinstance(c, GreedyPlanner))
     for _ in range(12):
         sim.run(bot, 24 * 10, skip=8)
-        planned = [it.type_id for it in bot.bb.plan.items if it.kind == "build"]
-        queue = bot.bb.services["production"].queue
-        assert set(queue) <= set(planned), (queue, planned)
+        for t in bot.bb.macro.pending:
+            assert planner.have(bot.bb, t) >= bot.bb.world.count(t) + 1
+    assert _n(w, U.Terran_Barracks) == 1 and _n(w, U.Terran_Refinery) == 1
 
 
-def test_expansion_goes_to_natural_exact_tile():
+def test_expansion_is_an_expand_item_toward_the_natural():
     g = make_game()
     bot = _bot("mech_expand")
     w = FakeWorld(g, minerals=50)
@@ -110,8 +110,8 @@ def test_expansion_goes_to_natural_exact_tile():
     bot.game = g
     bot.on_start(g)
     Sim(w).run(bot, 24 * 10, skip=8)
-    planner = next(c for c in bot.sched.components if isinstance(c, GreedyPlanner))
-    assert planner.next_base(bot.bb) == g.bases[g.self_natural_id].tile
+    assert bot.bb.macro.next_base == g.self_natural_id
+    assert not any(it.kind == "build" and it.type_id == int(U.Terran_Command_Center) for it in bot.bb.plan.items)
 
 
 def test_army_trains_leave_money_for_tech():
@@ -156,4 +156,5 @@ def test_larva_starved_zerg_with_a_bank_adds_a_macro_hatchery():
     bot.game = g
     bot.on_start(g)
     Sim(w).run(bot, 16, skip=8)
-    assert ("build", int(U.Zerg_Hatchery)) in {(it.kind, it.type_id) for it in bot.bb.plan.items}
+    planned = ("build", int(U.Zerg_Hatchery)) in {(it.kind, it.type_id) for it in bot.bb.plan.items}
+    assert planned or bot.bb.macro.pending_count(U.Zerg_Hatchery) == 1

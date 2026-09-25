@@ -25,9 +25,8 @@ from blackboard import Blackboard, Component, Phase
 from blackboard.models import FeatureMismatch, Model, load_model, model_search_dirs
 from blackboard.profile import register
 from bwbot import Race
-from mybot.opening import Opening
+from ..strategies.opening import Opening
 
-from .. import compat
 from ..strategies import TEMPLATES, Template, blend_goals, get
 from ..units import AIR_TECH
 
@@ -110,7 +109,7 @@ class TemplateStrategy(Component):
         st.switched_frame = bb.frame
         st.history.append((bb.frame, name))
         if self._start is None:
-            self._start = compat.state(bb).counts.copy()
+            self._start = bb.world.counts.copy()
         if self._opening is None or not self._opening.done:
             self._opening = Opening(self.current.opening, base=self._start)
         bb.raise_event("strategy_changed")
@@ -138,7 +137,7 @@ class TemplateStrategy(Component):
             st.posture.stance = thr.posture_override
         st.opening = t.opening_steps()
         if self._opening is not None:
-            st.opening_next = self._opening.next_build(compat.state(bb))
+            st.opening_next = self._opening.next_build(bb.world)
             st.opening_index = self._opening.i
             st.opening_done = self._opening.done
         st.values = dict(self.values if self.values is not None else self.weights)

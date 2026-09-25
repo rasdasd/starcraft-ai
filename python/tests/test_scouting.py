@@ -16,7 +16,7 @@ def _setup(scouting=None):
     from adjutant import Adjutant
     g = make_game(enemy_race=Race.Zerg)
     slots = {"scouting": {"impl": "Scouting", **(scouting or {})}}
-    bot = Adjutant("planned", slots=slots)
+    bot = Adjutant("scripted", slots=slots)
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g

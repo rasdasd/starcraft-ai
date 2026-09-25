@@ -13,7 +13,7 @@ os.environ["BWBOT_LOG"] = "0"
 
 def _bot(g):
     from adjutant import Adjutant
-    bot = Adjutant("parity")
+    bot = Adjutant("scripted")
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g

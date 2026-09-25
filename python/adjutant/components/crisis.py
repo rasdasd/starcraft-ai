@@ -31,7 +31,6 @@ from bwbot.observation import UnitFlag, UnitTypeFlag
 
 from .. import engage as E
 from .engagement import _Enemy
-from .executors import _sync_leases
 
 log = logging.getLogger("adjutant.crisis")
 
@@ -62,7 +61,7 @@ def _d2(a, b) -> float:
 @register("Crisis")
 class Crisis(Component):
     phase = Phase.DECIDE
-    reads = ("world", "belief", "meta")
+    reads = ("world", "belief", "meta", "macro")
     writes = ("threats",)
     priority = Priority.CRISIS
     order = 0
@@ -151,8 +150,7 @@ class Crisis(Component):
         active.append(Threat(kind, cx, cy, sev, frame, ids))
         hall = {int(Race.Terran): int(U.Terran_Command_Center), int(Race.Protoss): int(U.Protoss_Nexus),
                 int(Race.Zerg): int(U.Zerg_Hatchery)}.get(bb.meta.self_race)
-        bm = bb.services.get("buildings")
-        if hall is not None and bm is not None and bm.starting(hall):
+        if hall is not None and bb.macro.pending_count(hall):
             bb.request("production", self.slot, ttl=self.defend_frames, priority=int(Priority.CRISIS),
                        type_id=hall, item="cancel")
         d = DEFENSE.get(bb.meta.self_race)
@@ -270,7 +268,7 @@ class WorkerDefense(Component):
             if self.pulled:
                 log.info("f%d worker pull over (%d released)", bb.frame, len(self.pulled))
             self.pulled.clear()
-            _sync_leases(bb, self.slot, set(), self.priority, "pull")
+            bb.leases.hold(self.slot, set(), self.priority, "pull", bb.frame)
             return
         ut = bb.game.unit_types
         for uid in list(self.pulled):
@@ -297,7 +295,7 @@ class WorkerDefense(Component):
         elif len(self.pulled) > want:
             for uid in sorted(self.pulled)[want:]:
                 self.pulled.discard(uid)
-        _sync_leases(bb, self.slot, self.pulled, self.priority, "pull")
+        bb.leases.hold(self.slot, self.pulled, self.priority, "pull", bb.frame)
 
         targets = set()
         for t in bb.threats.active:

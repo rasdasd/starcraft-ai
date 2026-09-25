@@ -172,7 +172,7 @@ step "done"
 cat <<EOF
 Run a headless game:
   wsl -d Ubuntu -- bash scripts/run_openbw.sh          # starts BWAPILauncher + shim module on port 8765
-  python -m bwbot.run examples.basic_terran --no-gui   # from Windows or WSL; connects to localhost:8765
+  python -m bwbot.run adjutant --no-gui   # from Windows or WSL; connects to localhost:8765
 
 Note: OpenBW has no built-in computer opponent - the single-player enemy just sits there.
 EOF

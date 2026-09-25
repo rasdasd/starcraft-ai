@@ -17,7 +17,7 @@ Windows                                             WSL2 Ubuntu
 +-------------+--------------+                                         |
               | TCP 127.0.0.1:8765, length-prefixed FlatBuffers        |
 +-------------v---------------------------------------------------------v------------------+
-| python -m bwbot.run examples.basic_terran     (64-bit Python 3.12, numpy; torch optional) |
+| python -m bwbot.run adjutant                  (64-bit Python 3.12, numpy; torch optional) |
 +-------------------------------------------------------------------------------------------+
 ```
 
@@ -43,9 +43,10 @@ proto/bw.fbs          wire protocol (FlatBuffers schema) - the single source of 
 shim/                 C++ shim: CMakeLists.txt, src/, third_party/bwapi + bwem-community
   build/              Win32 build: shim.exe, shim_module.dll
   build-openbw/       Linux build (from WSL): shim_module.so
-python/               bwbot package (framework) + mybot/ + goliath/ + learned/ + examples/, .venv/
+python/               bwbot package (client framework), .venv/
   blackboard/         blackboard framework: sections, scheduler, arbiters, recorder, numpy models
-  adjutant/           blackboard bot: components/, strategies/, learn/ (per-slot features + training)
+  adjutant/           the bot: components/, macro/ (bases, workers, building jobs, spending),
+                      strategies/ + builds/, learn/ (per-slot features + training)
   harness/            self-play (OpenBW LAN) and published-bot match runners
   tests/              unit tests (synthetic games; no StarCraft needed)
 scripts/              setup_windows.ps1, build_shim.ps1, run_native.ps1, gen_proto.ps1|sh, gen_enums.py,
@@ -66,7 +67,7 @@ via winget if no MSVC is found.
 ```powershell
 scripts\setup_windows.ps1    # MSVC check, flatc, BWAPI 4.4.0 sources, game download (~100 MB), bwapi.ini, venv, codegen
 scripts\build_shim.ps1       # -> shim\build\shim.exe (Win32) and shim_module.dll
-scripts\run_native.ps1       # shim + StarCraft(BWAPI injected) + example bot, each in its own window
+scripts\run_native.ps1       # shim + StarCraft(BWAPI injected) + Adjutant, each in its own window
 scripts\run_native.ps1 -Stop # kill everything
 ```
 
@@ -74,9 +75,9 @@ Day-to-day, use the root launcher instead; it works from a Windows shell *and* f
 `powershell.exe` interop) and drives `run_native.ps1`:
 
 ```
-python run.py                                   # example bot in a visible StarCraft window
-python run.py --bot mybots.zerg --speed 42 --map "maps/BroodWar/sscai/(4)Python.scx"
-python run.py --bot mybot --games 5              # exactly 5 games, then StarCraft/shim/bot shut down
+python run.py                                   # Adjutant in a visible StarCraft window
+python run.py --race Zerg --speed 42 --map "maps/BroodWar/sscai/(4)Python.scx"
+python run.py --profile search --games 5         # exactly 5 games, then StarCraft/shim/bot shut down
 python run.py --stop
 python run.py --help                            # all options
 ```
@@ -98,7 +99,7 @@ Prereqs: WSL2 with Ubuntu (22.04/24.04), and the Windows setup done first (OpenB
 ```powershell
 wsl -d Ubuntu -u root -- bash scripts/setup_wsl.sh   # apt deps, clone+build openbw/bwapi, build shim_module.so, set up wsl/game
 wsl -d Ubuntu -- bash scripts/run_openbw.sh          # headless BWAPILauncher + shim, listening on :8765
-python\.venv\Scripts\python -m bwbot.run examples.basic_terran --no-gui --max-frames 20000
+python\.venv\Scripts\python -m bwbot.run adjutant --no-gui --max-frames 20000
 ```
 
 `run_openbw.sh --map ... --race ... --enemy-race ... --ui --port ...`. Set `OPENBW_ENABLE_UI=1`
@@ -112,39 +113,7 @@ OpenBW has no built-in computer opponent: the enemy in single-player just sits i
 
 ## Writing a bot
 
-Start from `python/mybot/` — a runnable starter bot (`python run.py --bot mybot`) with a swappable
-`Policy` on top of UAlbertaBot-shaped managers. `python run.py --bot goliath` is the same stack
-with a mech opener.
-
-| file | role | ML analogue |
-|---|---|---|
-| `mybot/state.py` | `perceive(obs, mem) -> State`: counts, supply, army/worker/enemy arrays, fog buildings, BWEM natural / main choke; `State.as_features()` | feature extraction |
-| `mybot/policy.py` | `Policy.decide(State) -> [Train, Build, Attack, Rally, …]`; `ScriptedPolicy` walks `opening.MARINE` | the model |
-| `mybot/opening.py` | supply-gated build lists (`MARINE`, `GOLIATH`) shared by policies | - |
-| `mybot/information.py` | fog memory for enemy buildings; guessed / seen enemy start | - |
-| `mybot/opponent.py` | race, first-seen timings, opening guess, proxy flag | opponent features |
-| `mybot/learned.py` | teacher opening + opponent prior, or `LinearPolicy` from `models/policy.npz` | the model |
-| `mybot/logger.py` / `train.py` | JSONL decisions; `python -m mybot.train` fits a numpy softmax | dataset / train |
-| `mybot/production.py` | queue + train / addon / upgrade (one building at a time until started) | - |
-| `mybot/buildings.py` | construction state machine (reserve, assign SCV, re-issue, retry tile) | - |
-| `mybot/workers.py` | mineral / gas / build / repair / scout jobs | - |
-| `mybot/scout.py` | one SCV to the other start, then watch | - |
-| `mybot/combat.py` | defend / push / hunt-air; no leave-home under 3 army | - |
-| `mybot/macro.py` | reserved-tile placer (mineral-line exclusion, geyser refineries, BWAPI legality) | - |
-| `mybot/bot.py` | `MyBot`: ticks managers each decision and draws a HUD | environment glue |
-
-To change the opener edit `opening.MARINE` / `opening.GOLIATH`. For the learning loop:
-
-```
-python run.py --bot learned              # Goliath teacher + opponent prior; logs to logs/
-python -m mybot.train --logs logs --out models/policy.npz
-python run.py --bot learned              # loads models/policy.npz (or BWBOT_MODEL / bwapi-data/read/policy.npz)
-```
-
-The model only outputs a tactic (`hold` / `defend` / `push` / `hunt_air`) and the next building.
-Managers still place tiles, assign workers, and the runner still trims to `apm_budget`.
-
-The minimal version of the same thing, without the layers:
+The bot in this repo is Adjutant (below). The client API underneath it, in its minimal form:
 
 ```python
 from bwbot import Bot, ClientConfig, UnitType, UnitFlag, run
@@ -197,13 +166,34 @@ ML frameworks are optional extras and never imported by the core:
 one *slot*, a phased scheduler (SENSE → DECIDE → PLAN → ACT → REPORT) with per-component periods,
 event triggers, a 40 ms decision budget and fallback to a scripted teacher when a component keeps
 failing, plus arbiters for unit leases, money and command priority (commands are sorted by priority
-before the runner's APM trim). `python/adjutant/` is the Terran bot built on it.
+before the runner's APM trim). `python/adjutant/` is the bot built on it; it plays all three races.
 
 ```
-python run.py --bot adjutant                 # default profile
-python run.py --bot adjutant:Parity          # the goliath bot, rebuilt from adapters over the mybot managers
-BWBOT_PROFILE_FILE=my.json python run.py --bot adjutant
+python run.py                                # default profile
+python run.py --profile search               # build-order search instead of the greedy planner
+BWBOT_PROFILE_FILE=my.json python run.py
 ```
+
+Each decision the slots run in phase order:
+
+| phase | slots |
+|---|---|
+| SENSE | `perception` (counts incl. eggs, income, workers/army/enemies), `meta` (map and matchup) |
+| DECIDE | `belief` (enemy start, bases, tech, army estimate, opening), `engagement`, `strategy` (build and posture), `crisis` (threats and defense requests) |
+| PLAN | `production`: rewrites `plan.items` (build / expand / train / addon / upgrade / research, by priority) from the strategy goal |
+| ACT | `macro`, `scouting`, `repair`, `tactics` + `micro`, `worker_defense` |
+| REPORT | `report` (snapshots for analysis) |
+
+`macro` (`adjutant/macro/`) is the only component that spends money or places buildings. It keeps
+one ledger: our bases (`BaseTracker`: which bases we hold, their patches, geysers and saturation;
+the next expansion by ground distance, skipping blocked, dangerous or enemy-held bases), the worker
+pool (mining at our bases, 3 per refinery with a gas-bank pause, transfers from saturated bases),
+and building jobs (a builder walks to the site, places when the money is on hand, retries a failed
+tile elsewhere; a Terran SCV stays until the building is done). Plan items are spent in priority
+order with one rule: start what is ready and affordable, send a builder early when the money will
+be there on arrival (expansions), hold money for what is ready but unaffordable, and skip what is
+blocked without holding money. `expand` items name no tile: macro picks the base. Planners count
+dispatched jobs through the `macro` section, so nothing is built twice.
 
 A profile says which implementation fills each slot. Override any part with JSON, for example:
 
@@ -216,8 +206,8 @@ log (`logs/adjutant/`, or `bwapi-data/write/adjutant-logs/` in tournaments) that
 Models are numpy `.npz` files (no torch at inference), looked up in `bwapi-data/read/`, the
 competition pack's `AI/models/`, then `python/models/`. Tests: `cd python; .venv\Scripts\python -m pytest`.
 
-Many games unattended: `harness.selfplay` (parallel headless OpenBW games in WSL, Python bots
-including Zerg/Protoss sparring bots), `harness.winematch` (published bots such as Locutus,
+Many games unattended: `harness.selfplay` (parallel headless OpenBW games in WSL between Adjutant
+profiles and races), `harness.winematch` (published bots such as Locutus,
 Stardust or Pluto on real StarCraft under Wine in WSL, several games at once) and
 `harness.botmatch` (the same on native Windows, one slow game at a time). See
 [docs/harness.md](docs/harness.md).
@@ -239,8 +229,7 @@ reported and skipped), and competed for by every selector: `RuleSelector` by tag
 strategy model describes builds by their tags and opening shape instead of by name, so it also
 scores builds it has never seen; no retraining is needed to add one. To always play one build, set
 `BWBOT_PROFILE_JSON='{"slots": {"strategy": {"impl": "ScriptedStrategy", "template": "my_build"}}}'`
-(or a path to such a file) with a profile whose production slot follows the goal (`planned`,
-`search`); `parity` plays the goliath bot's own build.
+(or a path to such a file), or use the `scripted` profile (`mech_expand` unless overridden).
 
 Generated builds: `python -m adjutant.learn.builds mutate mech_expand --n 4` writes variants
 (opening timings and order, an extra production building, attack/retreat supply, goal counts) to
@@ -251,13 +240,11 @@ never touched), and retrain the strategy model on the same runs.
 
 ### Profiles and training
 
-`adjutant` (the default) is `parity` when playing Terran, `planned` as Protoss or Zerg (the goliath
-policy is Terran-only; see `race_profiles` in `adjutant.profiles`). `parity` is the goliath bot's
-managers behind the blackboard. `planned` swaps
-in the new components (scripted belief, scouting, engagement evaluator, tactics + micro, crisis
-defense, greedy tech-tree planner); `search` replaces the planner with the build-order search over
-the economy simulator. The learned profiles build on `planned`, and each learned slot falls back to
-its scripted behaviour when its model is missing.
+`adjutant` (the default) is the scripted stack for every race: `RuleSelector` picks a build of our
+race, the greedy tech-tree planner, and the macro executor. The other profiles in
+`adjutant.profiles` swap a few slots: `scripted` (one fixed build), `search` (build-order search over
+the economy simulator), and the data-collection and learned profiles. Each learned slot falls back
+to its scripted behaviour when its model is missing.
 
 Train one component at a time: collect games with its data profile, train, then evaluate the
 learned profile against the scripted one (commands run from `python/`, in WSL):
@@ -266,7 +253,7 @@ learned profile against the scripted one (commands run from `python/`, in WSL):
 |---|---|---|---|
 | Strategy win model | `explore` | `python -m adjutant.learn.train strategy --logs runs/X --out models/strategy.npz` | `learned`, `blend` |
 | Belief | `truth` (full map info, fog-filtered) | `... train belief --logs runs/X --out models` | `learned` |
-| Engagement predictor | any `planned`-based profile | `... train engage --logs runs/X --out models/engage.npz` | `learned_combat` |
+| Engagement predictor | any profile | `... train engage --logs runs/X --out models/engage.npz` | `learned_combat` |
 | Tactics value model | `explore_combat` | `... train tactics --logs runs/X --out models/tactics.npz` | `learned_combat` |
 | RL micro (experimental) | `explore_micro` | `... train micro --logs runs/X --out models/micro.npz` | `rl_micro` |
 

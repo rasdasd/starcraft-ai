@@ -1,7 +1,7 @@
 """Scouting slot, driven by belief staleness and strategy needs.
 
-1. Initial worker scout (mybot ScoutManager): an SCV walks the remaining start candidates, then
-   watches the enemy main until threatened.
+1. Initial worker scout: a worker walks the remaining start candidates, then watches the enemy
+   main until threatened.
 2. Re-scouts: bases are ranked by value x staleness (known enemy bases > the enemy natural >
    other expansions near the enemy); one cheap unit (vulture, marine, ... or an SCV early) is
    leased just above COMBAT priority (taken from the squad pool, never from the defense squad), so
@@ -20,16 +20,100 @@ import numpy as np
 from blackboard import Blackboard, Component, Phase, Priority
 from blackboard.profile import register
 from bwbot import TechType, UnitFlag, UnitType as U
-from mybot.scout import ScoutManager
 
-from .. import compat
+from ..macro.workers import pick_worker
 
 log = logging.getLogger("adjutant.scouting")
 
-RESCOUT_TYPES = (U.Terran_Vulture, U.Terran_Marine, U.Terran_Goliath, U.Terran_Wraith)
+RESCOUT_TYPES = (U.Terran_Vulture, U.Terran_Marine, U.Terran_Goliath, U.Terran_Wraith,
+                 U.Zerg_Zergling, U.Protoss_Zealot, U.Protoss_Dragoon)
 RESCOUT_PRIORITY = int(Priority.COMBAT) + 1        # above the squad executor, below crisis
 ARRIVE = 6 * 32
 THREAT = 7 * 32
+SCOUT_MIN_WORKERS = 9
+SCOUT_ARRIVE = 8 * 32
+SCOUT_THREAT = 8 * 32
+
+
+def _threatened(enemies, x: int, y: int, radius: int = THREAT) -> bool:
+    if len(enemies) == 0:
+        return False
+    return bool((((enemies["x"] - x) ** 2 + (enemies["y"] - y) ** 2) < radius ** 2).any())
+
+
+class WorkerScout:
+    """One worker walks the other start locations (the likeliest first) and then watches the enemy
+    main until threatened, when it goes back to mining."""
+
+    def __init__(self) -> None:
+        self.worker_id: Optional[int] = None
+        self.targets: list[tuple[int, int]] = []
+        self.ti = 0
+        self.done = False
+
+    def on_start(self, game) -> None:
+        me = tuple(game.self_player.start_location)
+        self.targets = [tuple(s) for s in game.start_locations.tolist() if tuple(s) != me]
+        self.worker_id, self.ti, self.done = None, 0, False
+
+    @staticmethod
+    def _found(bb: Blackboard) -> Optional[tuple[int, int]]:
+        """The enemy start once an enemy base has been seen there."""
+        es = bb.belief.enemy_start
+        if es is None:
+            return None
+        found = any(e.alive and abs(e.tile[0] - es[0]) <= 10 and abs(e.tile[1] - es[1]) <= 10 for e in bb.belief.bases)
+        return tuple(es) if found else None
+
+    def dest(self) -> Optional[tuple[int, int]]:
+        return self.targets[self.ti] if self.ti < len(self.targets) else None
+
+    def update(self, bb: Blackboard, slot: str, priority: int) -> None:
+        if self.done:
+            return
+        w_all, obs = bb.world, bb.obs
+        es = bb.belief.enemy_start
+        if es is not None and tuple(es) in self.targets[self.ti:]:
+            rest = self.targets[self.ti:]
+            rest.remove(tuple(es))
+            self.targets[self.ti:] = [tuple(es)] + rest
+        found = self._found(bb)
+        if self.worker_id is None:
+            dest = found or self.dest()
+            if dest is None:
+                return self.finish(bb, slot)
+            if len(w_all.workers) < SCOUT_MIN_WORKERS:
+                return
+            allowed = {int(u["id"]) for u in w_all.workers if bb.leases.owner(int(u["id"])) is None}
+            w = pick_worker(obs, w_all.workers, dest[0] * 32, dest[1] * 32, allowed)
+            if w is None or not bb.leases.lease(int(w["id"]), slot, priority, "scout", bb.frame):
+                return
+            self.worker_id = int(w["id"])
+            log.info("f%d scout #%d -> %s", bb.frame, self.worker_id, dest)
+        w = obs.unit(self.worker_id)
+        if w is None or bb.leases.owner(self.worker_id) != slot:
+            self.worker_id = None
+            return
+        x, y = int(w["x"]), int(w["y"])
+        if _threatened(w_all.enemies, x, y, SCOUT_THREAT):
+            log.info("f%d scout #%d threatened; recalling", bb.frame, self.worker_id)
+            return self.finish(bb, slot)
+        dest = found or self.dest()
+        if dest is None:
+            return self.finish(bb, slot)
+        tx, ty = dest[0] * 32 + 64, dest[1] * 32 + 48
+        if found is None and (x - tx) ** 2 + (y - ty) ** 2 < SCOUT_ARRIVE ** 2:
+            self.ti += 1
+            return
+        if bool(int(w["flags"]) & int(UnitFlag.Idle)) or \
+                abs(int(w["order_target_x"]) - tx) + abs(int(w["order_target_y"]) - ty) > 64:
+            bb.act.move(w, tx, ty)
+
+    def finish(self, bb: Blackboard, slot: str) -> None:
+        if self.worker_id is not None:
+            bb.leases.release(self.worker_id, slot)
+            self.worker_id = None
+        self.done = True
 
 
 @register("Scouting")
@@ -52,10 +136,10 @@ class Scouting(Component):
         self.scan = scan
         self.scan_reserve = scan_reserve
         self.scan_every = scan_every_s * 24
-        self.initial = ScoutManager()
+        self.initial = WorkerScout()
 
     def on_start(self, bb: Blackboard) -> None:
-        self.initial.on_start(bb.game, bb.services["info"])
+        self.initial.on_start(bb.game)
         if not self.worker_scout:
             self.initial.done = True
         self.unit_id: Optional[int] = None
@@ -69,26 +153,20 @@ class Scouting(Component):
 
     # ------------------------------------------------------------------ tick
     def tick(self, bb: Blackboard) -> None:
-        s = compat.state(bb)
-        wm = compat.worker_manager(bb)
         sc = bb.scouting
         sc.scouts = {}
         if not self.initial.done:
-            self.initial.update(s, bb.act, wm, bb.services["info"])
+            self.initial.update(bb, self.slot, self.priority)
             wid = self.initial.worker_id
-            if wid is not None:
-                bb.leases.lease(wid, self.slot, self.priority, "scout", bb.frame)
-                i = self.initial
-                dest = i.targets[i.ti] if i.ti < len(i.targets) else (0, 0)
+            dest = self.initial.dest()
+            if wid is not None and dest is not None:
                 sc.scouts[wid] = (dest[0] * 32 + 64, dest[1] * 32 + 48)
-            if self.initial.done and wid is not None:
-                bb.leases.release(wid, self.slot)
         sc.initial_done = self.initial.done
 
         ranked = self.rank_targets(bb)
         sc.targets = [c for _, c, _ in ranked]
         if self.initial.done:
-            self._rescout(bb, s, ranked)
+            self._rescout(bb, ranked)
         if self.unit_id is not None and self.target is not None:
             sc.scouts[self.unit_id] = self.target
         if self.scan:
@@ -126,7 +204,7 @@ class Scouting(Component):
         return out
 
     # ------------------------------------------------------------------ unit re-scouts
-    def _rescout(self, bb: Blackboard, s, ranked) -> None:
+    def _rescout(self, bb: Blackboard, ranked) -> None:
         obs = bb.obs
         if self.unit_id is not None:
             u = obs.unit(self.unit_id)
@@ -138,7 +216,7 @@ class Scouting(Component):
             tx, ty = self.target
             arrived = (x - tx) ** 2 + (y - ty) ** 2 < ARRIVE ** 2
             fresh = self.target_base is not None and bb.belief.staleness.get(self.target_base, 10 ** 9) < 24 * 2
-            if arrived or fresh or bb.frame - self.sent > self.timeout or self._threatened(s, x, y):
+            if arrived or fresh or bb.frame - self.sent > self.timeout or _threatened(bb.world.enemies, x, y):
                 self._release(bb, "arrived" if arrived or fresh else "timeout/threat")
                 self.next_rescout = bb.frame + self.rescout_every
                 return
@@ -188,13 +266,6 @@ class Scouting(Component):
             bb.leases.release(self.unit_id, self.slot)
             log.debug("f%d rescout #%d done (%s)", bb.frame, self.unit_id, why)
         self.unit_id = self.target = self.target_base = None
-
-    @staticmethod
-    def _threatened(s, x: int, y: int) -> bool:
-        e = s.enemies
-        if len(e) == 0:
-            return False
-        return bool((((e["x"] - x) ** 2 + (e["y"] - y) ** 2) < THREAT ** 2).any())
 
     # ------------------------------------------------------------------ scans
     def _scans(self, bb: Blackboard, ranked) -> None:

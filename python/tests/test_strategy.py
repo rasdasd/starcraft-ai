@@ -15,7 +15,7 @@ os.environ["BWBOT_LOG"] = "0"
 
 def _bot(template):
     from adjutant import Adjutant
-    bot = Adjutant("parity", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "ScriptedStrategy", "template": template}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     return bot

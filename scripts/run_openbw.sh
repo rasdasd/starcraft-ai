@@ -4,7 +4,7 @@
 #   wsl -d Ubuntu -- bash scripts/run_openbw.sh [--port 8765] [--map maps/BroodWar/sscai/(4)Python.scx]
 #                                               [--race Terran] [--enemy-race Zerg] [--ui] [--stats-every N]
 #
-# Then, from Windows or WSL:  python -m bwbot.run examples.basic_terran --no-gui --speed 0
+# Then, from Windows or WSL:  python -m bwbot.run adjutant --no-gui --speed 0
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GAME="$ROOT/wsl/game"

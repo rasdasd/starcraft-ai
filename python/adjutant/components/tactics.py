@@ -93,7 +93,6 @@ class Tactics(Component):
         self.option_point: Optional[tuple[int, int]] = None
         if len(units) == 0:
             bb.squads.squads = squads
-            bb.squads.army_order = None
             self.pushing = False
             return
         taken: set[int] = set()
@@ -127,7 +126,6 @@ class Tactics(Component):
                 self.last_log = frame
                 self._log_decision(bb, rest, order)
         bb.squads.squads = squads
-        bb.squads.army_order = None
 
     def on_end(self, bb: Blackboard, won: bool) -> None:
         bb.record("tactics", "final", lost=[round(v) for v in self.lost])

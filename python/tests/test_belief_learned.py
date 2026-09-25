@@ -62,7 +62,7 @@ def test_train_belief_and_learned_predictions(tmp_path):
 
     from adjutant import Adjutant
     g = make_game(enemy_race=Race.Zerg)
-    bot = Adjutant("planned", slots={"belief": {"impl": "LearnedBelief", "models": str(out)}})
+    bot = Adjutant("scripted", slots={"belief": {"impl": "LearnedBelief", "models": str(out)}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g
@@ -85,7 +85,7 @@ def test_train_belief_and_learned_predictions(tmp_path):
 def test_learned_belief_without_models_is_scripted(tmp_path):
     from adjutant import Adjutant
     g = make_game()
-    bot = Adjutant("planned", slots={"belief": {"impl": "LearnedBelief", "models": str(tmp_path)}})
+    bot = Adjutant("scripted", slots={"belief": {"impl": "LearnedBelief", "models": str(tmp_path)}})
     bot.recorder = Recorder(enabled=False)
     bot.game = g
     bot.on_start(g)

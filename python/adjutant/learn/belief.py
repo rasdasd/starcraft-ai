@@ -22,7 +22,7 @@ from blackboard import Blackboard
 from blackboard.models import FeatureSpec
 from blackboard.recorder import iter_games
 from bwbot import Race, UnitType as U
-from mybot.opponent import OPENING_NAMES
+from ..enemy import OPENING_NAMES
 
 BELIEF_VERSION = 1
 

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$Name = 'bwbot',
-    [string]$Bot = 'mybot',          # e.g. adjutant, adjutant:Learned
+    [string]$Bot = 'adjutant',       # profile: set BWBOT_PROFILE in run_proxy.bat or ship a profile JSON
     [switch]$SkipShim,
     [switch]$SkipFreeze
 )

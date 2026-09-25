@@ -46,7 +46,7 @@ class Recording(Sim):
 def _setup(stance="hold", enemy_race=Race.Zerg, **posture):
     from adjutant import Adjutant
     g = make_game(enemy_race=enemy_race)
-    bot = Adjutant("planned", slots={"strategy": {"impl": "FixedPosture", "stance": stance, **posture}})
+    bot = Adjutant("scripted", slots={"strategy": {"impl": "FixedPosture", "stance": stance, **posture}})
     bot.recorder = Recorder(enabled=False)
     bot.strict = True
     bot.game = g

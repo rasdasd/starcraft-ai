@@ -6,21 +6,24 @@
   window (or -Stop) tears everything down.
 
 .EXAMPLE
-  scripts\run_native.ps1                                  # example bot, default settings
-  scripts\run_native.ps1 -Bot examples.basic_terran -FrameSkip 1 -Speed 42
+  scripts\run_native.ps1                                  # Adjutant, default settings
+  scripts\run_native.ps1 -Race Zerg -FrameSkip 1 -Speed 42
+  scripts\run_native.ps1 -BotProfile search               # pick a bot profile (BWBOT_PROFILE)
   scripts\run_native.ps1 -Games 5                         # play 5 games, then shut everything down
   scripts\run_native.ps1 -NoBot                           # only StarCraft + shim; run your bot by hand
   scripts\run_native.ps1 -Stop                            # kill StarCraft / shim / bot
 #>
 [CmdletBinding()]
 param(
-    [string]$Bot = 'examples.basic_terran',
+    [string]$Bot = 'adjutant',
     [int]$Port = 8765,
     [int]$FrameSkip = -1,        # -1 = bot default
     [int]$Speed = -2,            # -2 = bot default, -1 = game default, 0 = fastest, 42 = normal
     [string]$Map = '',           # override bwapi.ini map (relative to game/, e.g. maps/BroodWar/sscai/(4)Python.scx)
     [string]$Race = '',          # Terran | Protoss | Zerg | Random
     [string]$EnemyRace = '',
+    [Alias('Profile')]
+    [string]$BotProfile = '',    # bot profile name or JSON path (sets BWBOT_PROFILE for the bot)
     [int]$Games = 0,             # play exactly N games, then shut everything down (0 = forever)
     [switch]$NoBot,
     [switch]$NoGame,
@@ -81,8 +84,14 @@ if (-not $NoBot) {
     if ($FrameSkip -ge 1) { $args += @('--frame-skip', $FrameSkip) }
     if ($Speed -ge -1)    { $args += @('--speed', $Speed) }
     if ($Games -gt 0)     { $args += @('--games', $Games) }
-    Write-Host "starting bot: python $($args -join ' ')"
-    $botProc = Start-Process -FilePath $Py -ArgumentList $args -WorkingDirectory (Join-Path $Root 'python') -PassThru
+    Write-Host "starting bot: python $($args -join ' ')$(if ($BotProfile) { " (BWBOT_PROFILE=$BotProfile)" })"
+    $prevProfile = $env:BWBOT_PROFILE
+    if ($BotProfile) { $env:BWBOT_PROFILE = $BotProfile }
+    try {
+        $botProc = Start-Process -FilePath $Py -ArgumentList $args -WorkingDirectory (Join-Path $Root 'python') -PassThru
+    } finally {
+        $env:BWBOT_PROFILE = $prevProfile
+    }
     if ($Games -gt 0) {
         # Bounded session: wait for the bot to finish its N games, then tear down StarCraft + shim,
         # otherwise the game auto-restarts and sits there waiting for a bot that never comes.
