@@ -139,6 +139,8 @@ class ProductionManager:
             s.gas - buildings.reserved_gas(s.game),
             s.supply_left,
         )
+        if self.queue and self._morph_building(self.queue[0], s, act, budget):
+            self.queue.pop(0)
         waiting = any(t.status != CONSTRUCTING for t in buildings.tasks)
         if not waiting and self.queue:
             nxt = self.queue[0]
@@ -158,6 +160,23 @@ class ProductionManager:
             self._upgrade(upgrade_type, s, act, budget)
         for tech_type in self._researches:
             self._research(tech_type, s, act, budget)
+
+    def _morph_building(self, unit_type: int, s: State, act: Actions, budget: Budget) -> bool:
+        """Buildings made from another building (Lair, Hive, Sunken/Spore Colony, Greater Spire):
+        morph a completed source instead of sending a worker. False for worker-built types."""
+        src_type = int(s.game.unit_types["what_builds"][int(unit_type)])
+        if not 0 <= src_type < len(s.game.unit_types) or \
+                not int(s.game.unit_types["flags"][src_type]) & int(UnitTypeFlag.Building):
+            return False
+        if not budget.can_afford(s.game, unit_type) or not _prereqs_ready(s, unit_type):
+            return False
+        src = s.obs.my_completed(src_type)
+        if not len(src):
+            return False
+        act.morph(src[0], unit_type)
+        budget.spend(s.game, unit_type)
+        log.info("f%d morph %s", s.frame, s.game.type_name(unit_type))
+        return True
 
     def _train(self, unit_type: int, s: State, act: Actions, budget: Budget) -> None:
         if not budget.can_afford(s.game, unit_type):

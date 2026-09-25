@@ -393,6 +393,15 @@ class Sim:
                 self.jobs.pop(u["id"], None)
                 self.pending.append((w.frame + int(ut["build_time"]), "build", bid, u["id"]))
                 self.log.append(f"f{w.frame} build {w.game.type_name(c.extra)}")
+            elif c.type == C.Morph:
+                m, g, s = self._cost(c.extra)
+                if not u["flags"] & UnitFlag.Completed or not self._afford(m, g, s):
+                    continue
+                w.minerals -= m
+                w.gas -= g
+                u["type"] = int(c.extra)
+                u["flags"] &= ~(int(UnitFlag.Completed) | int(UnitFlag.Idle))
+                self.pending.append((w.frame + int(w.game.unit_types["build_time"][c.extra]), "build", u["id"], -1))
             elif c.type == C.Build_Addon:
                 m, g, _ = self._cost(c.extra)
                 if u.get("addon", -1) >= 0 or not self._afford(m, g):

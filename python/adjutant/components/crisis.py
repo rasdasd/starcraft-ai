@@ -3,14 +3,15 @@
 `Crisis` (DECIDE) writes `threats` and posts requests; it never commands units itself:
 - worker_rush: several enemy workers in our main early -> pull workers.
 - early_rush / overrun: enemy army near our bases that the engagement estimate says our army (with
-  static defense) loses to -> defensive posture for `defend_s`, cancel an unstarted expansion, a
-  bunker at the front (Terran, when barracks exist), and a worker pull if it reaches a mineral line.
+  static defense) loses to -> defensive posture for `defend_s`, cancel an unstarted expansion, the
+  race's ground static defense (`DEFENSE`: bunker at the front, cannon, sunken) once its gate
+  building exists, and a worker pull if it reaches a mineral line.
 - proxy / cannon_rush: enemy static defense or production buildings close to our bases early ->
   pull workers onto them while they are weak.
 - cloak: enemy cloaked units near our army or bases without detection (or cloak tech in belief)
-  -> comsat + turrets requested, scans requested on visible cloaked units.
+  -> detector addon (comsat) + anti-air static defense requested, scans on visible cloaked units.
 - drop: enemy ground units inside our main while the army is away -> threat for the defense squad.
-- air: enemy air near our bases and no anti-air -> turrets.
+- air: enemy air near our bases and no anti-air -> turrets / cannons / spores.
 
 `WorkerDefense` (ACT, CRISIS priority) executes "units/worker_pull" requests: leases the nearest
 healthy workers, attacks the threat's units, and releases workers when hurt or when it is over.
@@ -42,6 +43,16 @@ PROXY_OK = {int(U.Protoss_Pylon), int(U.Protoss_Gateway), int(U.Terran_Barracks)
 TRANSPORTS = {int(U.Terran_Dropship), int(U.Protoss_Shuttle)}
 DETECTION = {int(U.Terran_Missile_Turret), int(U.Terran_Science_Vessel), int(U.Terran_Comsat_Station),
              int(U.Protoss_Observer), int(U.Protoss_Photon_Cannon), int(U.Zerg_Overlord), int(U.Zerg_Spore_Colony)}
+# per race: ground static defense and the building that must be done before a rush asks for it,
+# anti-air / detection static defense, and a detector addon
+DEFENSE = {
+    int(Race.Terran): dict(ground=int(U.Terran_Bunker), gate=int(U.Terran_Barracks), front=True,
+                           aa=int(U.Terran_Missile_Turret), addon=int(U.Terran_Comsat_Station)),
+    int(Race.Protoss): dict(ground=int(U.Protoss_Photon_Cannon), gate=int(U.Protoss_Forge), front=False,
+                            aa=int(U.Protoss_Photon_Cannon), addon=None),
+    int(Race.Zerg): dict(ground=int(U.Zerg_Sunken_Colony), gate=int(U.Zerg_Spawning_Pool), front=False,
+                         aa=int(U.Zerg_Spore_Colony), addon=None),
+}
 
 
 def _d2(a, b) -> float:
@@ -144,12 +155,11 @@ class Crisis(Component):
         if hall is not None and bm is not None and bm.starting(hall):
             bb.request("production", self.slot, ttl=self.defend_frames, priority=int(Priority.CRISIS),
                        type_id=hall, item="cancel")
-        if bb.meta.self_race == int(Race.Terran) and w.count_completed(U.Terran_Barracks) and \
-                w.count(U.Terran_Bunker) == 0:
-            front = w.main_choke if w.main_choke is not None else homes[0]
+        d = DEFENSE.get(bb.meta.self_race)
+        if d is not None and w.count_completed(d["gate"]) and w.count(d["ground"]) == 0:
+            front = w.main_choke if d["front"] and w.main_choke is not None else homes[0]
             bb.request("production", self.slot, ttl=FPS * 30, priority=int(Priority.CRISIS),
-                       type_id=int(U.Terran_Bunker), item="build",
-                       near=(int(front[0]) // 32, int(front[1]) // 32))
+                       type_id=d["ground"], item="build", near=(int(front[0]) // 32, int(front[1]) // 32))
         if any(_d2((cx, cy), h) <= (10 * 32) ** 2 for h in homes) and len(w.workers):
             n = min(self.max_pull, 2 * len(army) + 2)
             wk = sorted(w.workers, key=lambda u: _d2((int(u["x"]), int(u["y"])), (cx, cy)))[:n]
@@ -190,15 +200,15 @@ class Crisis(Component):
             bb.request("scan", self.slot, ttl=FPS * 3, priority=int(Priority.CRISIS), x=cx, y=cy)
         else:
             active.append(Threat("cloak_tech", homes[0][0], homes[0][1], 0.5, frame, []))
-        if bb.meta.self_race == int(Race.Terran):
-            if w.count(U.Terran_Comsat_Station) == 0:
+        d = DEFENSE.get(bb.meta.self_race)
+        if d is not None:
+            if d["addon"] is not None and w.count(d["addon"]) == 0:
                 bb.request("production", self.slot, ttl=FPS * 30, priority=int(Priority.CRISIS),
-                           type_id=int(U.Terran_Comsat_Station), item="addon")
-            if w.count(U.Terran_Missile_Turret) < len(w.depots):
+                           type_id=d["addon"], item="addon")
+            if w.count(d["aa"]) < len(w.depots):
                 mt = w.main_tile
                 bb.request("production", self.slot, ttl=FPS * 30, priority=int(Priority.CRISIS) - 5,
-                           type_id=int(U.Terran_Missile_Turret), item="build", count=len(w.depots),
-                           near=(mt[0], mt[1] + 3))
+                           type_id=d["aa"], item="build", count=len(w.depots), near=(mt[0], mt[1] + 3))
 
     def _air(self, bb, near, homes, frame, active) -> None:
         ut = bb.game.unit_types
@@ -212,11 +222,11 @@ class Crisis(Component):
             return
         cx, cy = int(air[0]["x"]), int(air[0]["y"])
         active.append(Threat("air", cx, cy, 0.7, frame, [int(u["id"]) for u in air]))
-        if bb.meta.self_race == int(Race.Terran):
+        d = DEFENSE.get(bb.meta.self_race)
+        if d is not None:
             mt = w.main_tile
             bb.request("production", self.slot, ttl=FPS * 30, priority=int(Priority.CRISIS) - 5,
-                       type_id=int(U.Terran_Missile_Turret), item="build", count=len(w.depots) + 1,
-                       near=(mt[0], mt[1] + 3))
+                       type_id=d["aa"], item="build", count=len(w.depots) + 1, near=(mt[0], mt[1] + 3))
 
     # ------------------------------------------------------------------ helpers
     def _pull(self, bb: Blackboard, why: str, at: tuple[int, int], n: int) -> None:

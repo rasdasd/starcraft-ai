@@ -24,7 +24,8 @@ PARITY = {
 
 BUILTINS: dict[str, dict] = {
     "parity": PARITY,
-    "adjutant": {"base": "parity", "name": "adjutant"},
+    # the goliath policy is Terran-only: other races play `planned` (resolved at game start)
+    "adjutant": {"base": "parity", "name": "adjutant", "race_profiles": {"Protoss": "planned", "Zerg": "planned"}},
     # strategy goal -> greedy tech-tree planner (instead of the goliath policy's own build order)
     "planned": {"base": "parity", "name": "planned", "slots": {
         "belief": {"impl": "ScriptedBelief"},

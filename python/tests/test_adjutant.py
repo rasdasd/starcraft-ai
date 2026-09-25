@@ -43,6 +43,20 @@ def test_parity_profile_runs_and_builds():
     bot.on_end(False)
 
 
+def test_default_profile_plays_planned_for_zerg():
+    from adjutant.components.planner import GreedyPlanner
+    bot = _bot("adjutant")
+    g = make_game(self_race=Race.Zerg, enemy_race=Race.Terran)
+    w = FakeWorld(g, minerals=50)
+    w.standard_start(4)
+    bot.game = g
+    bot.on_start(g)
+    assert any(isinstance(c, GreedyPlanner) for c in bot.sched.components)
+    Sim(w).run(bot, 24 * 60 * 4, skip=8)
+    assert all(s.failures == 0 for s in bot.sched.stats.values()), {k: s.errors for k, s in bot.sched.stats.items()}
+    assert w.observe().count(U.Zerg_Spawning_Pool) >= 1
+
+
 def test_parity_matches_goliath_commands():
     """Same observations -> same unit commands as the goliath bot (spread training off)."""
     from goliath import Goliath
