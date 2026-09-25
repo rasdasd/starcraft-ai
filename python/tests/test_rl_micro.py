@@ -42,8 +42,9 @@ def _fight(w, g):
     return marines, lings
 
 
-def test_rl_micro_without_model_plays_scripted_focus_and_logs_transitions():
-    bot, w, g, rows, rl = _bot({"epsilon": 0.0, "log_frac": 1.0, "decide_frames": 8})
+def test_rl_micro_without_model_plays_scripted_focus_and_logs_transitions(tmp_path):
+    bot, w, g, rows, rl = _bot({"epsilon": 0.0, "log_frac": 1.0, "decide_frames": 8,
+                                "model": str(tmp_path / "none.npz")})
     assert rl.model is None
     marines, lings = _fight(w, g)
     sim = Recording(w)

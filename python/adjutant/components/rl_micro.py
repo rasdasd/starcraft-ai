@@ -8,7 +8,9 @@ with enemies in reach picks one of `learn.micro.ACTIONS` every `decide_frames`:
     back     walk back toward the squad point (or away from the enemies if already there)
     stay     no new command
 Without a model the choice is the scripted one (kite when the scripted kite rule fires, else focus),
-so an exploring RLMicro with no model plays like Micro plus `epsilon` random actions. Transitions
+so an exploring RLMicro with no model plays like Micro plus `epsilon` random actions. With a
+model, the greedy action replaces the scripted one only when its Q value is `margin` higher
+(offline Q estimates for rarely tried actions are noisy). Transitions
 for a `log_frac` sample of units go to `micro/step` rows (see learn/micro.py).
 """
 from __future__ import annotations
@@ -33,12 +35,13 @@ A = {a: i for i, a in enumerate(ACTIONS)}
 
 @register("RLMicro")
 class RLMicro(Micro):
-    def __init__(self, model: str = "micro.npz", epsilon: float = 0.1, decide_frames: int = 12,
+    def __init__(self, model: str = "micro.npz", epsilon: float = 0.1, margin: float = 0.05, decide_frames: int = 12,
                  log_frac: float = 0.3, radius_tiles: int = 8, left_frames: int = 48, seed: Optional[int] = None,
                  **kw) -> None:
         super().__init__(**kw)
         self.model_path = model
         self.epsilon = epsilon
+        self.margin = margin
         self.decide_frames = decide_frames
         self.log_frac = log_frac
         self.radius_px = radius_tiles * 32
@@ -98,10 +101,12 @@ class RLMicro(Micro):
     def _choose(self, bb, u, info, enemies, near, d2, x, frame) -> int:
         if self.rng.random() < self.epsilon:
             return self.rng.randrange(len(ACTIONS))
-        if self.model is not None:
-            q = np.asarray(self.model.predict(all_actions(x)), np.float32).reshape(len(ACTIONS), -1)[:, 0]
-            return int(np.argmax(q))
-        return A["kite"] if self._kite(u, info, enemies, near, d2, bb.act, frame) is not None else A["focus"]
+        scripted = A["kite"] if self._kite(u, info, enemies, near, d2, bb.act, frame) is not None else A["focus"]
+        if self.model is None:
+            return scripted
+        q = np.asarray(self.model.predict(all_actions(x)), np.float32).reshape(len(ACTIONS), -1)[:, 0]
+        best = int(np.argmax(q))
+        return best if q[best] - q[scripted] > self.margin else scripted
 
     def _do(self, bb, action, u, info, sq, enemies, near, d2, assigned, frame):
         act = bb.act

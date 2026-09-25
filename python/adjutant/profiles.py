@@ -52,7 +52,7 @@ BUILTINS: dict[str, dict] = {
     "explore_micro": {"base": "planned", "name": "explore_micro", "slots": {
         "micro": {"impl": "RLMicro", "epsilon": 0.2}}},
     "rl_micro": {"base": "planned", "name": "rl_micro", "slots": {
-        "micro": {"impl": "RLMicro", "epsilon": 0.0, "log_frac": 0.0}}},
+        "micro": {"impl": "RLMicro", "epsilon": 0.0, "margin": 0.1, "log_frac": 0.0}}},
     "learned_combat": {"base": "planned", "name": "learned_combat", "slots": {
         "engagement": {"impl": "LearnedEngagement"},
         "tactics": {"impl": "LearnedTactics"}}},
