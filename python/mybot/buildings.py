@@ -201,7 +201,7 @@ class BuildingManager:
                         s.game.type_name(task.unit_type), task.tile, "at site" if at_site else "travel", wpos, how)
             placer.release(s.game, task.unit_type, task.tile)
             if not task.exact:
-                placer.fail(task.tile)
+                placer.fail(task.tile, radius=2 if at_site else 0)
             task.tile = None
             task.query_id = None
             task.status = UNASSIGNED

@@ -67,7 +67,8 @@ class Budget:
 
 
 class ProductionManager:
-    def __init__(self) -> None:
+    def __init__(self, max_starting: int = 1) -> None:
+        self.max_starting = max_starting     # building jobs walking to their site at once
         self.queue: list[int] = []
         self.targets: dict[int, tuple[Optional[tuple[int, int]], bool]] = {}   # queued type -> (near, exact)
         self._trains: list[int] = []
@@ -141,15 +142,17 @@ class ProductionManager:
         )
         if self.queue and self._morph_building(self.queue[0], s, act, budget):
             self.queue.pop(0)
-        waiting = any(t.status != CONSTRUCTING for t in buildings.tasks)
-        if not waiting and self.queue:
+        starting = sum(1 for t in buildings.tasks if t.status != CONSTRUCTING)
+        while starting < self.max_starting and self.queue:
             nxt = self.queue[0]
-            if budget.can_afford(s.game, nxt) and _prereqs_ready(s, nxt):
-                near, exact = self.targets.pop(nxt, (None, False))
-                buildings.add(nxt, near=near, exact=exact)
-                self.queue.pop(0)
-                budget.spend(s.game, nxt)
-                log.info("f%d start build job %s", s.frame, s.game.type_name(nxt))
+            if not (budget.can_afford(s.game, nxt) and _prereqs_ready(s, nxt)):
+                break
+            near, exact = self.targets.pop(nxt, (None, False))
+            buildings.add(nxt, near=near, exact=exact)
+            self.queue.pop(0)
+            budget.spend(s.game, nxt)
+            starting += 1
+            log.info("f%d start build job %s", s.frame, s.game.type_name(nxt))
 
         self._addon_parents: set[int] = set()
         for unit_type in self._addons:         # before trains, which would take the idle parent

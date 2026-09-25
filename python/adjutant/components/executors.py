@@ -88,7 +88,8 @@ class Construction(Component):
     priority = Priority.CONSTRUCTION
     order = 0
 
-    def __init__(self, spread: bool = True, draw: bool = True) -> None:
+    def __init__(self, spread: bool = True, draw: bool = True, max_starting: int = 3) -> None:
+        self.max_starting = max_starting    # concurrent unstarted building jobs under a re-planning planner
         self.production = SpreadProductionManager() if spread else ProductionManager()
         self.buildings = BuildingManager()
         self.placer = Placer()
@@ -110,6 +111,7 @@ class Construction(Component):
         if plan.replace_queue:
             self.production.queue.clear()
             self.production.targets.clear()
+        self.production.max_starting = self.max_starting if plan.replace_queue else 1
         for it in plan.items:
             if it.kind == "build":
                 front = it.priority >= Priority.SUPPLY and not plan.replace_queue

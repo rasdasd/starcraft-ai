@@ -158,8 +158,11 @@ class Placer:
     def release(self, game: GameInfo, building: int, tile: tuple[int, int]) -> None:
         self.reserved.difference_update(footprint(game, building, tile))
 
-    def fail(self, tile: tuple[int, int]) -> None:
-        self.failed.add(tile)
+    def fail(self, tile: tuple[int, int], radius: int = 0) -> None:
+        """Skip `tile` as a top-left from now on (and the tiles within `radius`: whatever blocks a
+        builder standing at the site, e.g. sieged tanks, usually covers the neighbours too)."""
+        x, y = tile
+        self.failed.update((x + dx, y + dy) for dx in range(-radius, radius + 1) for dy in range(-radius, radius + 1))
 
     def find(self, obs: Observation, building: int, near_tile: tuple[int, int]) -> Optional[tuple[int, int]]:
         skip = frozenset(self.failed)
