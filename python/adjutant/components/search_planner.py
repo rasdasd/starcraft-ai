@@ -182,7 +182,7 @@ class SearchPlanner(GreedyPlanner):
         supply_t = SUPPLY.get(self.race)
         if supply_t is not None and bb.world.supply_total < self.max_supply and \
                 self._need_supply(bb, self.tree, supply_t, hall):
-            add("build", supply_t, P_SUPPLY, "supply")
+            self._add_supply(self.tree, add, supply_t)
         horizon = bb.frame + self.slack
         trains: Counter = Counter()
         prio = {}

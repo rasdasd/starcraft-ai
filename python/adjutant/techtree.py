@@ -143,7 +143,8 @@ class TechTree:
             out.append(t)
 
         for t in needs:
-            visit(int(t))
+            if not self._is_worker_or_larva(int(t)):
+                visit(int(t))
         return out
 
     def _is_worker_or_larva(self, t: int) -> bool:

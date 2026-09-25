@@ -127,7 +127,7 @@ class GreedyPlanner(Component):
         # 1. supply
         if supply_t is not None and w.supply_total < self.max_supply:
             if self._need_supply(bb, tree, supply_t, hall):
-                add("build", supply_t, P_SUPPLY, "supply")
+                self._add_supply(tree, add, supply_t)
                 notes.append("supply")
 
         # 1b. requests from other slots (crisis: bunker / turret / comsat, cancel an expansion)
@@ -291,6 +291,14 @@ class GreedyPlanner(Component):
             elif r.item == "research":
                 add("research", t, r.priority, why, cost=tree.tech_cost(t))
         return cancels
+
+    @staticmethod
+    def _add_supply(tree: TechTree, add, supply_t: int) -> None:
+        """Depots and pylons are built; overlords are trained from larva."""
+        if tree.is_building(supply_t):
+            add("build", supply_t, P_SUPPLY, "supply")
+        else:
+            add("train", supply_t, P_SUPPLY, "supply", cost=tree.cost(supply_t))
 
     def _need_supply(self, bb: Blackboard, tree: TechTree, supply_t: int, hall: Optional[int]) -> bool:
         w = bb.world

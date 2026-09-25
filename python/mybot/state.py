@@ -11,10 +11,13 @@ from typing import Optional
 
 import numpy as np
 
-from bwbot import GameInfo, Observation
+from bwbot import GameInfo, Observation, UnitType
 from bwbot.observation import UnitTypeFlag
 
 from .opponent import OpponentSnapshot
+
+# units morphing inside these count as their `build_type` (BWAPI counts them as the egg)
+EGGS = (int(UnitType.Zerg_Egg), int(UnitType.Zerg_Lurker_Egg), int(UnitType.Zerg_Cocoon))
 
 
 @dataclass
@@ -100,6 +103,12 @@ def perceive(obs: Observation, game: GameInfo, mem: Memory) -> State:
     n = len(game.unit_types)
     counts = me.all_unit_count if me.all_unit_count.size >= n else np.zeros(n, dtype=np.int32)
     completed = me.completed_unit_count if me.completed_unit_count.size >= n else np.zeros(n, dtype=np.int32)
+    own = obs.my_units
+    eggs = own[np.isin(own["type"], EGGS) & (own["build_type"] >= 0) & (own["build_type"] < n)]
+    if len(eggs):
+        counts = counts.copy()
+        for bt in eggs["build_type"]:
+            counts[int(bt)] += 2 if int(game.unit_types["flags"][int(bt)]) & UnitTypeFlag.TwoUnitsInOneEgg else 1
 
     return State(
         frame=obs.frame_count,
