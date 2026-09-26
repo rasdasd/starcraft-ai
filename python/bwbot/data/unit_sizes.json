@@ -1,0 +1,3193 @@
+{
+ "source": {
+  "url": "https://liquipedia.net/starcraft/List_of_Unit_and_Building_Sizes",
+  "retrieved": "2026-09-26",
+  "license": "CC BY-SA 3.0 (Liquipedia)"
+ },
+ "notes": [
+  "Pixels. units: width x height of the collision box.",
+  "buildings: box = tile footprint in pixels, real = collision box, gap = free pixels between the collision box and the footprint edge on each side. Two buildings in adjacent tiles leave left.gap.right + right.gap.left pixels between them; a unit passes a gap at least its width (vertical passage) or height (horizontal passage).",
+  "Add-on gaps are relative to the add-on's own footprint; a negative left gap overlaps the parent's gap to seal it.",
+  "bwapi: [left, up, right, down] extents from the unit's centre, as BWAPI reports them (UnitType::dimensionLeft() ...)."
+ ],
+ "units": {
+  "Terran_Vulture_Spider_Mine": {
+   "liquipedia": "Spider Mine",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 15,
+   "height": 15,
+   "bwapi": [
+    7,
+    7,
+    7,
+    7
+   ]
+  },
+  "Terran_Ghost": {
+   "liquipedia": "Terran Ghost",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 15,
+   "height": 22,
+   "bwapi": [
+    7,
+    10,
+    7,
+    11
+   ]
+  },
+  "Terran_Marine": {
+   "liquipedia": "Terran Marine",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 17,
+   "height": 20,
+   "bwapi": [
+    8,
+    9,
+    8,
+    10
+   ]
+  },
+  "Terran_Medic": {
+   "liquipedia": "Terran Medic",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 17,
+   "height": 20,
+   "bwapi": [
+    8,
+    9,
+    8,
+    10
+   ]
+  },
+  "Terran_Firebat": {
+   "liquipedia": "Terran Firebat",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 23,
+   "height": 22,
+   "bwapi": [
+    11,
+    7,
+    11,
+    14
+   ]
+  },
+  "Terran_SCV": {
+   "liquipedia": "Terran Scv",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 23,
+   "height": 23,
+   "bwapi": [
+    11,
+    11,
+    11,
+    11
+   ]
+  },
+  "Terran_Vulture": {
+   "liquipedia": "Terran Vulture",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Terran_Goliath": {
+   "liquipedia": "Terran Goliath",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Terran_Siege_Tank_Tank_Mode": {
+   "liquipedia": "Terran Siege Tank (Tank Mode)",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Terran_Siege_Tank_Siege_Mode": {
+   "liquipedia": "Terran Siege Tank (Siege Mode)",
+   "section": "Terran units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Terran_Wraith": {
+   "liquipedia": "Terran Wraith",
+   "section": "Terran units",
+   "kind": "air",
+   "width": 38,
+   "height": 30,
+   "bwapi": [
+    19,
+    15,
+    18,
+    14
+   ]
+  },
+  "Terran_Dropship": {
+   "liquipedia": "Terran Dropship",
+   "section": "Terran units",
+   "kind": "air",
+   "width": 49,
+   "height": 37,
+   "bwapi": [
+    24,
+    16,
+    24,
+    20
+   ]
+  },
+  "Terran_Valkyrie": {
+   "liquipedia": "Terran Valkyrie",
+   "section": "Terran units",
+   "kind": "air",
+   "width": 49,
+   "height": 37,
+   "bwapi": [
+    24,
+    16,
+    24,
+    20
+   ]
+  },
+  "Terran_Science_Vessel": {
+   "liquipedia": "Terran Science Vessel",
+   "section": "Terran units",
+   "kind": "air",
+   "width": 65,
+   "height": 50,
+   "bwapi": [
+    32,
+    33,
+    32,
+    16
+   ]
+  },
+  "Terran_Battlecruiser": {
+   "liquipedia": "Terran Battlecruiser",
+   "section": "Terran units",
+   "kind": "air",
+   "width": 75,
+   "height": 59,
+   "bwapi": [
+    37,
+    29,
+    37,
+    29
+   ]
+  },
+  "Zerg_Larva": {
+   "liquipedia": "Zerg Larva",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 16,
+   "height": 16,
+   "bwapi": [
+    8,
+    8,
+    7,
+    7
+   ]
+  },
+  "Zerg_Zergling": {
+   "liquipedia": "Zerg Zergling",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 16,
+   "height": 16,
+   "bwapi": [
+    8,
+    4,
+    7,
+    11
+   ]
+  },
+  "Zerg_Infested_Terran": {
+   "liquipedia": "Infested Terran",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 17,
+   "height": 20,
+   "bwapi": [
+    8,
+    9,
+    8,
+    10
+   ]
+  },
+  "Zerg_Broodling": {
+   "liquipedia": "Zerg Broodling",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 19,
+   "height": 19,
+   "bwapi": [
+    9,
+    9,
+    9,
+    9
+   ]
+  },
+  "Zerg_Hydralisk": {
+   "liquipedia": "Zerg Hydralisk",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 21,
+   "height": 23,
+   "bwapi": [
+    10,
+    10,
+    10,
+    12
+   ]
+  },
+  "Zerg_Drone": {
+   "liquipedia": "Zerg Drone",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 23,
+   "height": 23,
+   "bwapi": [
+    11,
+    11,
+    11,
+    11
+   ]
+  },
+  "Zerg_Defiler": {
+   "liquipedia": "Zerg Defiler",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 27,
+   "height": 25,
+   "bwapi": [
+    13,
+    12,
+    13,
+    12
+   ]
+  },
+  "Zerg_Lurker": {
+   "liquipedia": "Zerg Lurker",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    15,
+    15,
+    16,
+    16
+   ]
+  },
+  "Zerg_Lurker_Egg": {
+   "liquipedia": "Lurker Egg",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Zerg_Egg": {
+   "liquipedia": "Zerg Egg",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Zerg_Ultralisk": {
+   "liquipedia": "Zerg Ultralisk",
+   "section": "Zerg Units",
+   "kind": "ground",
+   "width": 38,
+   "height": 32,
+   "bwapi": [
+    19,
+    16,
+    18,
+    15
+   ]
+  },
+  "Zerg_Scourge": {
+   "liquipedia": "Zerg Scourge",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 24,
+   "height": 24,
+   "bwapi": [
+    12,
+    12,
+    11,
+    11
+   ]
+  },
+  "Zerg_Cocoon": {
+   "liquipedia": "Mutalisk Cocoon",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Zerg_Mutalisk": {
+   "liquipedia": "Zerg Mutalisk",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 44,
+   "height": 44,
+   "bwapi": [
+    22,
+    22,
+    21,
+    21
+   ]
+  },
+  "Zerg_Guardian": {
+   "liquipedia": "Zerg Guardian",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 44,
+   "height": 44,
+   "bwapi": [
+    22,
+    22,
+    21,
+    21
+   ]
+  },
+  "Zerg_Devourer": {
+   "liquipedia": "Zerg Devourer",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 44,
+   "height": 44,
+   "bwapi": [
+    22,
+    22,
+    21,
+    21
+   ]
+  },
+  "Zerg_Queen": {
+   "liquipedia": "Zerg Queen",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 48,
+   "height": 48,
+   "bwapi": [
+    24,
+    24,
+    23,
+    23
+   ]
+  },
+  "Zerg_Overlord": {
+   "liquipedia": "Zerg Overlord",
+   "section": "Zerg Units",
+   "kind": "air",
+   "width": 50,
+   "height": 50,
+   "bwapi": [
+    25,
+    25,
+    24,
+    24
+   ]
+  },
+  "Protoss_Scarab": {
+   "liquipedia": "Protoss Scarab",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 5,
+   "height": 5,
+   "bwapi": [
+    2,
+    2,
+    2,
+    2
+   ]
+  },
+  "Protoss_Zealot": {
+   "liquipedia": "Protoss Zealot",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 23,
+   "height": 19,
+   "bwapi": [
+    11,
+    5,
+    11,
+    13
+   ]
+  },
+  "Protoss_Probe": {
+   "liquipedia": "Protoss Probe",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 23,
+   "height": 23,
+   "bwapi": [
+    11,
+    11,
+    11,
+    11
+   ]
+  },
+  "Protoss_Dark_Templar": {
+   "liquipedia": "Protoss Dark Templar",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 24,
+   "height": 26,
+   "bwapi": [
+    12,
+    6,
+    11,
+    19
+   ]
+  },
+  "Protoss_High_Templar": {
+   "liquipedia": "Protoss High Templar",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 24,
+   "height": 24,
+   "bwapi": [
+    12,
+    10,
+    11,
+    13
+   ]
+  },
+  "Protoss_Dragoon": {
+   "liquipedia": "Protoss Dragoon",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    15,
+    15,
+    16,
+    16
+   ]
+  },
+  "Protoss_Archon": {
+   "liquipedia": "Protoss Archon",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Protoss_Dark_Archon": {
+   "liquipedia": "Protoss Dark Archon",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Protoss_Reaver": {
+   "liquipedia": "Protoss Reaver",
+   "section": "Protoss Units",
+   "kind": "ground",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Protoss_Interceptor": {
+   "liquipedia": "Protoss Interceptor",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 16,
+   "height": 16,
+   "bwapi": [
+    8,
+    8,
+    7,
+    7
+   ]
+  },
+  "Protoss_Observer": {
+   "liquipedia": "Protoss Observer",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Protoss_Corsair": {
+   "liquipedia": "Protoss Corsair",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 36,
+   "height": 32,
+   "bwapi": [
+    18,
+    16,
+    17,
+    15
+   ]
+  },
+  "Protoss_Scout": {
+   "liquipedia": "Protoss Scout",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 36,
+   "height": 32,
+   "bwapi": [
+    18,
+    16,
+    17,
+    15
+   ]
+  },
+  "Protoss_Shuttle": {
+   "liquipedia": "Protoss Shuttle",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 40,
+   "height": 32,
+   "bwapi": [
+    20,
+    16,
+    19,
+    15
+   ]
+  },
+  "Protoss_Arbiter": {
+   "liquipedia": "Protoss Arbiter",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 44,
+   "height": 44,
+   "bwapi": [
+    22,
+    22,
+    21,
+    21
+   ]
+  },
+  "Protoss_Carrier": {
+   "liquipedia": "Protoss Carrier",
+   "section": "Protoss Units",
+   "kind": "air",
+   "width": 64,
+   "height": 64,
+   "bwapi": [
+    32,
+    32,
+    31,
+    31
+   ]
+  },
+  "Critter_Rhynadon": {
+   "liquipedia": "Rhynadon (Badlands Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Critter_Bengalaas": {
+   "liquipedia": "Bengalaas (Jungle World Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Critter_Scantid": {
+   "liquipedia": "Scantid (Desert Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Critter_Kakaru": {
+   "liquipedia": "Kakaru (Twilight Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Critter_Ragnasaur": {
+   "liquipedia": "Ragnasaur (Ash World Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Critter_Ursadon": {
+   "liquipedia": "Ursadon (Ice World Critter)",
+   "section": "Critters",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Special_Map_Revealer": {
+   "liquipedia": "Map Revealer",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 27,
+   "height": 31,
+   "bwapi": [
+    13,
+    13,
+    13,
+    17
+   ]
+  },
+  "Powerup_Flag": {
+   "liquipedia": "Flag",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Young_Chrysalis": {
+   "liquipedia": "Young Chrysalis",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Psi_Emitter": {
+   "liquipedia": "Psi Emitter",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Data_Disk": {
+   "liquipedia": "Data Disc",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Khaydarin_Crystal": {
+   "liquipedia": "Khaydarin Crystal",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Mineral_Cluster_Type_1": {
+   "liquipedia": "Mineral Cluster Type 1",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Mineral_Cluster_Type_2": {
+   "liquipedia": "Mineral Cluster Type 2",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Protoss_Gas_Orb_Type_1": {
+   "liquipedia": "Protoss Vespene Gas Orb Type 1",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Protoss_Gas_Orb_Type_2": {
+   "liquipedia": "Protoss Vespene Gas Orb Type 2",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Zerg_Gas_Sac_Type_1": {
+   "liquipedia": "Zerg Vespene Gas Sac Type 1",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Zerg_Gas_Sac_Type_2": {
+   "liquipedia": "Zerg Vespene Gas Sac Type 2",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Terran_Gas_Tank_Type_1": {
+   "liquipedia": "Terran Vespene Gas Tank Type 1",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Terran_Gas_Tank_Type_2": {
+   "liquipedia": "Terran Vespene Gas Tank Type 2",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Spell_Scanner_Sweep": {
+   "liquipedia": "Scanner Sweep",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 27,
+   "height": 31,
+   "bwapi": [
+    13,
+    13,
+    13,
+    17
+   ]
+  },
+  "Terran_Civilian": {
+   "liquipedia": "Terran Civilian",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 17,
+   "height": 20,
+   "bwapi": [
+    8,
+    9,
+    8,
+    10
+   ]
+  },
+  "Terran_Nuclear_Missile": {
+   "liquipedia": "Nuclear Missile",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 15,
+   "height": 29,
+   "bwapi": [
+    7,
+    14,
+    7,
+    14
+   ]
+  },
+  "Hero_Infested_Kerrigan": {
+   "liquipedia": "Infested Kerrigan",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 15,
+   "height": 22,
+   "bwapi": [
+    7,
+    10,
+    7,
+    11
+   ]
+  },
+  "Powerup_Uraj_Crystal": {
+   "liquipedia": "Uraj Crystal",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Powerup_Khalis_Crystal": {
+   "liquipedia": "Khalis Crystal",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 32,
+   "height": 32,
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Spell_Disruption_Web": {
+   "liquipedia": "Disruption Web",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 120,
+   "height": 80,
+   "bwapi": [
+    60,
+    40,
+    59,
+    39
+   ]
+  },
+  "Spell_Dark_Swarm": {
+   "liquipedia": "Dark Swarm",
+   "section": "Miscellaneous Units",
+   "kind": "unit",
+   "width": 160,
+   "height": 160,
+   "bwapi": [
+    80,
+    80,
+    79,
+    79
+   ]
+  }
+ },
+ "buildings": {
+  "Terran_Command_Center": {
+   "liquipedia": "Terran Command Center",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    117,
+    83
+   ],
+   "gap": {
+    "top": 7,
+    "left": 6,
+    "right": 5,
+    "bottom": 6
+   },
+   "bwapi": [
+    58,
+    41,
+    58,
+    41
+   ]
+  },
+  "Terran_Supply_Depot": {
+   "liquipedia": "Terran Supply Depot",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    77,
+    49
+   ],
+   "gap": {
+    "top": 10,
+    "left": 10,
+    "right": 9,
+    "bottom": 5
+   },
+   "bwapi": [
+    38,
+    22,
+    38,
+    26
+   ]
+  },
+  "Terran_Refinery": {
+   "liquipedia": "Terran Refinery",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    64
+   ],
+   "real": [
+    113,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 7,
+    "bottom": 0
+   },
+   "bwapi": [
+    56,
+    32,
+    56,
+    31
+   ]
+  },
+  "Terran_Barracks": {
+   "liquipedia": "Terran Barracks",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    105,
+    73
+   ],
+   "gap": {
+    "top": 8,
+    "left": 16,
+    "right": 7,
+    "bottom": 15
+   },
+   "bwapi": [
+    48,
+    40,
+    56,
+    32
+   ]
+  },
+  "Terran_Academy": {
+   "liquipedia": "Terran Academy",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    85,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 3,
+    "bottom": 7
+   },
+   "bwapi": [
+    40,
+    32,
+    44,
+    24
+   ]
+  },
+  "Terran_Factory": {
+   "liquipedia": "Terran Factory",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    113,
+    81
+   ],
+   "gap": {
+    "top": 8,
+    "left": 8,
+    "right": 7,
+    "bottom": 7
+   },
+   "bwapi": [
+    56,
+    40,
+    56,
+    40
+   ]
+  },
+  "Terran_Starport": {
+   "liquipedia": "Terran Starport",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    79
+   ],
+   "gap": {
+    "top": 8,
+    "left": 16,
+    "right": 15,
+    "bottom": 9
+   },
+   "bwapi": [
+    48,
+    40,
+    48,
+    38
+   ]
+  },
+  "Terran_Science_Facility": {
+   "liquipedia": "Terran Science Facility",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    77
+   ],
+   "gap": {
+    "top": 10,
+    "left": 16,
+    "right": 15,
+    "bottom": 9
+   },
+   "bwapi": [
+    48,
+    38,
+    48,
+    38
+   ]
+  },
+  "Terran_Engineering_Bay": {
+   "liquipedia": "Terran Engineering Bay",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    61
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 15,
+    "bottom": 19
+   },
+   "bwapi": [
+    48,
+    32,
+    48,
+    28
+   ]
+  },
+  "Terran_Armory": {
+   "liquipedia": "Terran Armory",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    55
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 9
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    22
+   ]
+  },
+  "Terran_Missile_Turret": {
+   "liquipedia": "Terran Missile Turret",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    33,
+    49
+   ],
+   "gap": {
+    "top": 0,
+    "left": 16,
+    "right": 15,
+    "bottom": 15
+   },
+   "bwapi": [
+    16,
+    32,
+    16,
+    16
+   ]
+  },
+  "Terran_Bunker": {
+   "liquipedia": "Terran Bunker",
+   "section": "Terran Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    65,
+    41
+   ],
+   "gap": {
+    "top": 8,
+    "left": 16,
+    "right": 15,
+    "bottom": 15
+   },
+   "bwapi": [
+    32,
+    24,
+    32,
+    16
+   ]
+  },
+  "Terran_Comsat_Station": {
+   "liquipedia": "Terran Comsat Station",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    69,
+    42
+   ],
+   "gap": {
+    "top": 16,
+    "left": -5,
+    "right": 0,
+    "bottom": 6
+   },
+   "bwapi": [
+    37,
+    16,
+    31,
+    25
+   ]
+  },
+  "Terran_Nuclear_Silo": {
+   "liquipedia": "Terran Nuclear Silo",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    69,
+    42
+   ],
+   "gap": {
+    "top": 16,
+    "left": -5,
+    "right": 0,
+    "bottom": 6
+   },
+   "bwapi": [
+    37,
+    16,
+    31,
+    25
+   ]
+  },
+  "Terran_Machine_Shop": {
+   "liquipedia": "Terran Machine Shop",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    71,
+    49
+   ],
+   "gap": {
+    "top": 8,
+    "left": -7,
+    "right": 0,
+    "bottom": 7
+   },
+   "bwapi": [
+    39,
+    24,
+    31,
+    24
+   ]
+  },
+  "Terran_Control_Tower": {
+   "liquipedia": "Terran Control Tower",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    76,
+    47
+   ],
+   "gap": {
+    "top": 8,
+    "left": -15,
+    "right": 3,
+    "bottom": 9
+   },
+   "bwapi": [
+    47,
+    24,
+    28,
+    22
+   ]
+  },
+  "Terran_Covert_Ops": {
+   "liquipedia": "Terran Covert Ops",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    76,
+    47
+   ],
+   "gap": {
+    "top": 8,
+    "left": -15,
+    "right": 3,
+    "bottom": 9
+   },
+   "bwapi": [
+    47,
+    24,
+    28,
+    22
+   ]
+  },
+  "Terran_Physics_Lab": {
+   "liquipedia": "Terran Physics Lab",
+   "section": "Terran Buildings",
+   "kind": "addon",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    76,
+    47
+   ],
+   "gap": {
+    "top": 8,
+    "left": -15,
+    "right": 3,
+    "bottom": 9
+   },
+   "bwapi": [
+    47,
+    24,
+    28,
+    22
+   ]
+  },
+  "Zerg_Infested_Command_Center": {
+   "liquipedia": "Infested Command Center",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    117,
+    83
+   ],
+   "gap": {
+    "top": 7,
+    "left": 6,
+    "right": 5,
+    "bottom": 6
+   },
+   "bwapi": [
+    58,
+    41,
+    58,
+    41
+   ]
+  },
+  "Zerg_Hatchery": {
+   "liquipedia": "Zerg Hatchery",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    99,
+    65
+   ],
+   "gap": {
+    "top": 16,
+    "left": 15,
+    "right": 14,
+    "bottom": 15
+   },
+   "bwapi": [
+    49,
+    32,
+    49,
+    32
+   ]
+  },
+  "Zerg_Lair": {
+   "liquipedia": "Zerg Lair",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    99,
+    65
+   ],
+   "gap": {
+    "top": 16,
+    "left": 15,
+    "right": 14,
+    "bottom": 15
+   },
+   "bwapi": [
+    49,
+    32,
+    49,
+    32
+   ]
+  },
+  "Zerg_Hive": {
+   "liquipedia": "Zerg Hive",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    99,
+    65
+   ],
+   "gap": {
+    "top": 16,
+    "left": 15,
+    "right": 14,
+    "bottom": 15
+   },
+   "bwapi": [
+    49,
+    32,
+    49,
+    32
+   ]
+  },
+  "Zerg_Nydus_Canal": {
+   "liquipedia": "Zerg Nydus Canal",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    64,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    32,
+    31,
+    31
+   ]
+  },
+  "Zerg_Hydralisk_Den": {
+   "liquipedia": "Zerg Hydralisk Den",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    81,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 7,
+    "bottom": 7
+   },
+   "bwapi": [
+    40,
+    32,
+    40,
+    24
+   ]
+  },
+  "Zerg_Defiler_Mound": {
+   "liquipedia": "Zerg Defiler Mound",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    64
+   ],
+   "real": [
+    97,
+    37
+   ],
+   "gap": {
+    "top": 0,
+    "left": 16,
+    "right": 15,
+    "bottom": 27
+   },
+   "bwapi": [
+    48,
+    32,
+    48,
+    4
+   ]
+  },
+  "Zerg_Greater_Spire": {
+   "liquipedia": "Zerg Greater Spire",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    57,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 4,
+    "right": 3,
+    "bottom": 7
+   },
+   "bwapi": [
+    28,
+    32,
+    28,
+    24
+   ]
+  },
+  "Zerg_Queens_Nest": {
+   "liquipedia": "Zerg Queen's Nest",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    71,
+    57
+   ],
+   "gap": {
+    "top": 4,
+    "left": 10,
+    "right": 15,
+    "bottom": 3
+   },
+   "bwapi": [
+    38,
+    28,
+    32,
+    28
+   ]
+  },
+  "Zerg_Evolution_Chamber": {
+   "liquipedia": "Zerg Evolution Chamber",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    77,
+    53
+   ],
+   "gap": {
+    "top": 0,
+    "left": 4,
+    "right": 15,
+    "bottom": 11
+   },
+   "bwapi": [
+    44,
+    32,
+    32,
+    20
+   ]
+  },
+  "Zerg_Ultralisk_Cavern": {
+   "liquipedia": "Zerg Ultralisk Cavern",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    73,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 15,
+    "bottom": 0
+   },
+   "bwapi": [
+    40,
+    32,
+    32,
+    31
+   ]
+  },
+  "Zerg_Spire": {
+   "liquipedia": "Zerg Spire",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    57,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 4,
+    "right": 3,
+    "bottom": 7
+   },
+   "bwapi": [
+    28,
+    32,
+    28,
+    24
+   ]
+  },
+  "Zerg_Spawning_Pool": {
+   "liquipedia": "Zerg Spawning Pool",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    77,
+    47
+   ],
+   "gap": {
+    "top": 4,
+    "left": 12,
+    "right": 7,
+    "bottom": 13
+   },
+   "bwapi": [
+    36,
+    28,
+    40,
+    18
+   ]
+  },
+  "Zerg_Creep_Colony": {
+   "liquipedia": "Zerg Creep Colony",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    48,
+    48
+   ],
+   "gap": {
+    "top": 8,
+    "left": 8,
+    "right": 8,
+    "bottom": 8
+   },
+   "bwapi": [
+    24,
+    24,
+    23,
+    23
+   ]
+  },
+  "Zerg_Spore_Colony": {
+   "liquipedia": "Zerg Spore Colony",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    48,
+    48
+   ],
+   "gap": {
+    "top": 8,
+    "left": 8,
+    "right": 8,
+    "bottom": 8
+   },
+   "bwapi": [
+    24,
+    24,
+    23,
+    23
+   ]
+  },
+  "Zerg_Sunken_Colony": {
+   "liquipedia": "Zerg Sunken Colony",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    48,
+    48
+   ],
+   "gap": {
+    "top": 8,
+    "left": 8,
+    "right": 8,
+    "bottom": 8
+   },
+   "bwapi": [
+    24,
+    24,
+    23,
+    23
+   ]
+  },
+  "Zerg_Extractor": {
+   "liquipedia": "Zerg Extractor",
+   "section": "Zerg Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    64
+   ],
+   "real": [
+    128,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    64,
+    32,
+    63,
+    31
+   ]
+  },
+  "Protoss_Nexus": {
+   "liquipedia": "Protoss Nexus",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    113,
+    79
+   ],
+   "gap": {
+    "top": 9,
+    "left": 8,
+    "right": 7,
+    "bottom": 8
+   },
+   "bwapi": [
+    56,
+    39,
+    56,
+    39
+   ]
+  },
+  "Protoss_Robotics_Facility": {
+   "liquipedia": "Protoss Robotics Facility",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    77,
+    37
+   ],
+   "gap": {
+    "top": 16,
+    "left": 12,
+    "right": 7,
+    "bottom": 11
+   },
+   "bwapi": [
+    36,
+    16,
+    40,
+    20
+   ]
+  },
+  "Protoss_Pylon": {
+   "liquipedia": "Protoss Pylon",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    33,
+    33
+   ],
+   "gap": {
+    "top": 20,
+    "left": 16,
+    "right": 15,
+    "bottom": 11
+   },
+   "bwapi": [
+    16,
+    12,
+    16,
+    20
+   ]
+  },
+  "Protoss_Assimilator": {
+   "liquipedia": "Protoss Assimilator",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    64
+   ],
+   "real": [
+    97,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 16,
+    "right": 15,
+    "bottom": 7
+   },
+   "bwapi": [
+    48,
+    32,
+    48,
+    24
+   ]
+  },
+  "Protoss_Observatory": {
+   "liquipedia": "Protoss Observatory",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    89,
+    45
+   ],
+   "gap": {
+    "top": 16,
+    "left": 4,
+    "right": 3,
+    "bottom": 3
+   },
+   "bwapi": [
+    44,
+    16,
+    44,
+    28
+   ]
+  },
+  "Protoss_Gateway": {
+   "liquipedia": "Protoss Gateway",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    73
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 15,
+    "bottom": 7
+   },
+   "bwapi": [
+    48,
+    32,
+    48,
+    40
+   ]
+  },
+  "Protoss_Photon_Cannon": {
+   "liquipedia": "Protoss Photon Cannon",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    41,
+    33
+   ],
+   "gap": {
+    "top": 16,
+    "left": 12,
+    "right": 11,
+    "bottom": 15
+   },
+   "bwapi": [
+    20,
+    16,
+    20,
+    16
+   ]
+  },
+  "Protoss_Citadel_of_Adun": {
+   "liquipedia": "Protoss Citadel of Adun",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    65,
+    49
+   ],
+   "gap": {
+    "top": 8,
+    "left": 24,
+    "right": 7,
+    "bottom": 7
+   },
+   "bwapi": [
+    24,
+    24,
+    40,
+    24
+   ]
+  },
+  "Protoss_Cybernetics_Core": {
+   "liquipedia": "Protoss Cybernetics Core",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    81,
+    49
+   ],
+   "gap": {
+    "top": 8,
+    "left": 8,
+    "right": 7,
+    "bottom": 7
+   },
+   "bwapi": [
+    40,
+    24,
+    40,
+    24
+   ]
+  },
+  "Protoss_Templar_Archives": {
+   "liquipedia": "Protoss Templar Archives",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    65,
+    49
+   ],
+   "gap": {
+    "top": 8,
+    "left": 16,
+    "right": 15,
+    "bottom": 7
+   },
+   "bwapi": [
+    32,
+    24,
+    32,
+    24
+   ]
+  },
+  "Protoss_Forge": {
+   "liquipedia": "Protoss Forge",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    73,
+    45
+   ],
+   "gap": {
+    "top": 8,
+    "left": 12,
+    "right": 11,
+    "bottom": 11
+   },
+   "bwapi": [
+    36,
+    24,
+    36,
+    20
+   ]
+  },
+  "Protoss_Stargate": {
+   "liquipedia": "Protoss Stargate",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    73
+   ],
+   "gap": {
+    "top": 8,
+    "left": 16,
+    "right": 15,
+    "bottom": 15
+   },
+   "bwapi": [
+    48,
+    40,
+    48,
+    32
+   ]
+  },
+  "Protoss_Fleet_Beacon": {
+   "liquipedia": "Protoss Fleet Beacon",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    88,
+    57
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 0,
+    "bottom": 7
+   },
+   "bwapi": [
+    40,
+    32,
+    47,
+    24
+   ]
+  },
+  "Protoss_Arbiter_Tribunal": {
+   "liquipedia": "Protoss Arbiter Tribunal",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    89,
+    57
+   ],
+   "gap": {
+    "top": 4,
+    "left": 4,
+    "right": 3,
+    "bottom": 3
+   },
+   "bwapi": [
+    44,
+    28,
+    44,
+    28
+   ]
+  },
+  "Protoss_Robotics_Support_Bay": {
+   "liquipedia": "Protoss Robotics Support Bay",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    65,
+    53
+   ],
+   "gap": {
+    "top": 0,
+    "left": 16,
+    "right": 15,
+    "bottom": 11
+   },
+   "bwapi": [
+    32,
+    32,
+    32,
+    20
+   ]
+  },
+  "Protoss_Shield_Battery": {
+   "liquipedia": "Protoss Shield Battery",
+   "section": "Protoss Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    65,
+    33
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 15,
+    "bottom": 15
+   },
+   "bwapi": [
+    32,
+    16,
+    32,
+    16
+   ]
+  },
+  "Resource_Mineral_Field": {
+   "liquipedia": "Mineral Field (Type 1)",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "resource",
+   "box": [
+    64,
+    32
+   ],
+   "real": [
+    64,
+    32
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    16,
+    31,
+    15
+   ]
+  },
+  "Resource_Mineral_Field_Type_2": {
+   "liquipedia": "Mineral Field (Type 2)",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "resource",
+   "box": [
+    64,
+    32
+   ],
+   "real": [
+    64,
+    32
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    16,
+    31,
+    15
+   ]
+  },
+  "Resource_Mineral_Field_Type_3": {
+   "liquipedia": "Mineral Field (Type 3)",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "resource",
+   "box": [
+    64,
+    32
+   ],
+   "real": [
+    64,
+    32
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    16,
+    31,
+    15
+   ]
+  },
+  "Resource_Vespene_Geyser": {
+   "liquipedia": "Vespene Geyser",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "resource",
+   "box": [
+    128,
+    64
+   ],
+   "real": [
+    128,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    64,
+    32,
+    63,
+    31
+   ]
+  },
+  "Special_Khaydarin_Crystal_Form": {
+   "liquipedia": "Khaydarin Crystal Formation",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    128,
+    96
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    64,
+    48,
+    63,
+    47
+   ]
+  },
+  "Special_Protoss_Temple": {
+   "liquipedia": "Protoss Temple",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    224,
+    96
+   ],
+   "real": [
+    224,
+    96
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    112,
+    48,
+    111,
+    47
+   ]
+  },
+  "Special_XelNaga_Temple": {
+   "liquipedia": "Xel`Naga Temple",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    160,
+    128
+   ],
+   "real": [
+    160,
+    98
+   ],
+   "gap": {
+    "top": 30,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    80,
+    34,
+    79,
+    63
+   ]
+  },
+  "Special_Warp_Gate": {
+   "liquipedia": "Warp Gate",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Psi_Disrupter": {
+   "liquipedia": "Psi Disrupter",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    160,
+    96
+   ],
+   "real": [
+    150,
+    86
+   ],
+   "gap": {
+    "top": 10,
+    "left": 0,
+    "right": 10,
+    "bottom": 0
+   },
+   "bwapi": [
+    80,
+    38,
+    69,
+    47
+   ]
+  },
+  "Special_Zerg_Beacon": {
+   "liquipedia": "Zerg Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Terran_Beacon": {
+   "liquipedia": "Terran Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Protoss_Beacon": {
+   "liquipedia": "Protoss Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Zerg_Flag_Beacon": {
+   "liquipedia": "Zerg Flag Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Terran_Flag_Beacon": {
+   "liquipedia": "Terran Flag Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Protoss_Flag_Beacon": {
+   "liquipedia": "Protoss Flag Beacon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Power_Generator": {
+   "liquipedia": "Power Generator",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    120,
+    72
+   ],
+   "gap": {
+    "top": 20,
+    "left": 8,
+    "right": 0,
+    "bottom": 4
+   },
+   "bwapi": [
+    56,
+    28,
+    63,
+    43
+   ]
+  },
+  "Special_Overmind_Cocoon": {
+   "liquipedia": "Overmind Cocoon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Crashed_Norad_II": {
+   "liquipedia": "Norad II (Crashed)",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Ion_Cannon": {
+   "liquipedia": "Ion Cannon",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    96,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    48,
+    32,
+    47,
+    31
+   ]
+  },
+  "Special_Overmind_With_Shell": {
+   "liquipedia": "Zerg Overmind (With Shell)",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    160,
+    96
+   ],
+   "real": [
+    160,
+    73
+   ],
+   "gap": {
+    "top": 16,
+    "left": 0,
+    "right": 0,
+    "bottom": 7
+   },
+   "bwapi": [
+    80,
+    32,
+    79,
+    40
+   ]
+  },
+  "Special_Overmind": {
+   "liquipedia": "Zerg Overmind",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    160,
+    96
+   ],
+   "real": [
+    160,
+    73
+   ],
+   "gap": {
+    "top": 16,
+    "left": 0,
+    "right": 0,
+    "bottom": 7
+   },
+   "bwapi": [
+    80,
+    32,
+    79,
+    40
+   ]
+  },
+  "Special_Mature_Chrysalis": {
+   "liquipedia": "Mature Chrysalis",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    64,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    32,
+    31,
+    31
+   ]
+  },
+  "Special_Cerebrate": {
+   "liquipedia": "Zerg Cerebrate",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    73,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 15,
+    "bottom": 0
+   },
+   "bwapi": [
+    40,
+    32,
+    32,
+    31
+   ]
+  },
+  "Special_Cerebrate_Daggoth": {
+   "liquipedia": "Zerg Cerebrate Daggoth",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    96,
+    64
+   ],
+   "real": [
+    73,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 8,
+    "right": 15,
+    "bottom": 0
+   },
+   "bwapi": [
+    40,
+    32,
+    32,
+    31
+   ]
+  },
+  "Special_Stasis_Cell_Prison": {
+   "liquipedia": "Stasis Cell/Prison",
+   "section": "Natural Resources & Neutral Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    128,
+    96
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    64,
+    48,
+    63,
+    47
+   ]
+  },
+  "Special_Floor_Missile_Trap": {
+   "liquipedia": "Floor Missile Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    64,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    32,
+    31,
+    31
+   ]
+  },
+  "Special_Upper_Level_Door": {
+   "liquipedia": "Left Upper Level Door",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    136,
+    136
+   ],
+   "real": [
+    70,
+    38
+   ],
+   "gap": {
+    "top": 51,
+    "left": 43,
+    "right": 23,
+    "bottom": 47
+   },
+   "bwapi": [
+    25,
+    17,
+    44,
+    20
+   ]
+  },
+  "Special_Right_Upper_Level_Door": {
+   "liquipedia": "Right Upper Level Door",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    136,
+    136
+   ],
+   "real": [
+    70,
+    38
+   ],
+   "gap": {
+    "top": 51,
+    "left": 24,
+    "right": 42,
+    "bottom": 47
+   },
+   "bwapi": [
+    44,
+    17,
+    25,
+    20
+   ]
+  },
+  "Special_Pit_Door": {
+   "liquipedia": "Left Pit Door",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    148,
+    100
+   ],
+   "real": [
+    70,
+    38
+   ],
+   "gap": {
+    "top": 33,
+    "left": 33,
+    "right": 45,
+    "bottom": 29
+   },
+   "bwapi": [
+    41,
+    17,
+    28,
+    20
+   ]
+  },
+  "Special_Right_Pit_Door": {
+   "liquipedia": "Right Pit Door",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    148,
+    100
+   ],
+   "real": [
+    70,
+    38
+   ],
+   "gap": {
+    "top": 33,
+    "left": 46,
+    "right": 32,
+    "bottom": 29
+   },
+   "bwapi": [
+    28,
+    17,
+    41,
+    20
+   ]
+  },
+  "Special_Floor_Gun_Trap": {
+   "liquipedia": "Floor Gun Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    64,
+    64
+   ],
+   "gap": {
+    "top": 0,
+    "left": 0,
+    "right": 0,
+    "bottom": 0
+   },
+   "bwapi": [
+    32,
+    32,
+    31,
+    31
+   ]
+  },
+  "Special_Wall_Missile_Trap": {
+   "liquipedia": "Left Wall Missile Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    32,
+    32
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 16,
+    "bottom": 16
+   },
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Special_Wall_Flame_Trap": {
+   "liquipedia": "Left Wall Flame Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    32,
+    32
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 16,
+    "bottom": 16
+   },
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Special_Right_Wall_Missile_Trap": {
+   "liquipedia": "Right Wall Missile Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    32,
+    32
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 16,
+    "bottom": 16
+   },
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Special_Right_Wall_Flame_Trap": {
+   "liquipedia": "Right Wall Flame Trap",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    64,
+    64
+   ],
+   "real": [
+    32,
+    32
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 16,
+    "bottom": 16
+   },
+   "bwapi": [
+    16,
+    16,
+    15,
+    15
+   ]
+  },
+  "Special_Start_Location": {
+   "liquipedia": "Start Location",
+   "section": "Miscellaneous Buildings",
+   "kind": "building",
+   "box": [
+    128,
+    96
+   ],
+   "real": [
+    97,
+    65
+   ],
+   "gap": {
+    "top": 16,
+    "left": 16,
+    "right": 15,
+    "bottom": 15
+   },
+   "bwapi": [
+    48,
+    32,
+    48,
+    32
+   ]
+  }
+ }
+}

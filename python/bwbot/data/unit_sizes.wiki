@@ -1,0 +1,448 @@
+This list shows all unit sizes except for dummy and unused units in StarCraft:Brood War. Hero units have the same sizes as their non-hero counterparts, except for Infested Kerrigan (hero Infested Terran). Burrowed units have the same size as when they are unburrowed.
+
+==Ground and Air units==
+
+[[File:Ground_units_sizes.jpg|650px]]
+
+All numbers are in pixels. Width X Height.
+===Terran units===
+
+{{Col}}
+{| class="sortable wikitable"
+!Ground Unit
+!Size
+|-
+|Spider Mine:
+|15x15 
+|-
+|Terran Ghost:
+|15x22 
+|-
+|Terran Marine:
+|17x20 
+|-
+|Terran Medic:
+|17x20 
+|-
+|Terran Firebat:
+|23x22 
+|-
+|Terran Scv:
+|23x23 
+|-
+|Terran Vulture:
+|32x32 
+|-
+|Terran Goliath:
+|32x32 
+|-
+|Terran Siege Tank (Tank Mode):
+|32x32 
+|-
+|Terran Siege Tank (Siege Mode):
+|32x32 
+|}
+{{Col-break}}
+{| class="sortable wikitable"
+!Air Unit
+!Size
+|-
+|Terran Wraith:
+|38x30 
+|-
+|Terran Dropship:
+|49x37 
+|-
+|Terran Valkyrie:
+|49x37 
+|-
+|Terran Science Vessel:
+|65x50 
+|-
+|Terran Battlecruiser:
+|75x59 
+|}
+{{EndCol}}
+
+===Zerg Units===
+{{Col}}
+{| class="sortable wikitable"
+!Ground Unit
+!Size
+|-
+|Zerg Larva:||16x16
+|-
+|Zerg Zergling:||16x16 
+|-
+|Infested Terran:||17x20
+|-
+|Zerg Broodling:||19x19
+|-
+|Zerg Hydralisk:||21x23
+|-
+|Zerg Drone:||23x23
+|-
+|Zerg Defiler:||27x25
+|-
+|Zerg Lurker:||32x32
+|-
+|Lurker Egg:||32x32
+|-
+|Zerg Egg:||32x32
+|-
+|Zerg Ultralisk:||38x32
+|}
+{{Col-break}}
+{| class="sortable wikitable"
+!Air Unit
+!Size
+|-
+|Zerg Scourge:||24x24 
+|-
+|Mutalisk Cocoon:||32x32
+|-
+|Zerg Mutalisk:||44x44
+|-
+|Zerg Guardian:||44x44 
+|-
+|Zerg Devourer:||44x44
+|-
+|Zerg Queen:||48x48
+|-
+|Zerg Overlord:||50x50
+|}
+{{EndCol}}
+===Protoss Units===
+{{Col}}
+{| class="sortable wikitable"
+!Ground Unit
+!Size
+|-
+|Protoss Scarab:||5x5
+|-
+|Protoss Zealot:||23x19
+|-
+|Protoss Probe:||23x23
+|-
+|Protoss Dark Templar:||24x26
+|-
+|Protoss High Templar:||24x24
+|-
+|Protoss Dragoon:||32x32
+|-
+|Protoss Archon:||32x32
+|-
+|Protoss Dark Archon:||32x32
+|-
+|Protoss Reaver:||32x32
+|}
+{{Col-break}}
+{| class="sortable wikitable"
+!Air Unit
+!Size
+|-
+|Protoss Interceptor:||16x16
+|-
+|Protoss Observer:||32x32
+|-
+|Protoss Corsair:||36x32
+|-
+|Protoss Scout:||36x32
+|-
+|Protoss Shuttle:||40x32
+|-
+|Protoss Arbiter:||44x44
+|-
+|Protoss Carrier:||64x64
+|}
+{{EndCol}}
+===Critters===
+{| class="sortable wikitable"
+!Unit
+!Size
+|-
+|Rhynadon (Badlands Critter):||32x32
+|-
+|Bengalaas (Jungle World Critter):||32x32
+|-
+|Scantid (Desert Critter):||32x32
+|-
+|Kakaru (Twilight Critter):||32x32
+|-
+|Ragnasaur (Ash World Critter):||32x32
+|-
+|Ursadon (Ice World Critter):||32x32
+|}
+
+===Miscellaneous Units===
+{| class="sortable wikitable"
+!Unit
+!Size
+|-
+|Map Revealer:||27x31
+|-
+|Flag:||32x32
+|-
+|Young Chrysalis:||32x32
+|-
+|Psi Emitter:||32x32
+|-
+|Data Disc:||32x32
+|-
+|Khaydarin Crystal:||32x32
+|-
+|Mineral Cluster Type 1:||32x32
+|-
+|Mineral Cluster Type 2:||32x32
+|-
+|Protoss Vespene Gas Orb Type 1:||32x32
+|-
+|Protoss Vespene Gas Orb Type 2:||32x32
+|-
+|Zerg Vespene Gas Sac Type 1:||32x32
+|-
+|Zerg Vespene Gas Sac Type 2:||32x32
+|-
+|Terran Vespene Gas Tank Type 1:||32x32
+|-
+|Terran Vespene Gas Tank Type 2:||32x32
+|-
+|Scanner Sweep:||27x31
+|-
+|Terran Civilian:||17x20
+|-
+|Nuclear Missile:||15x29
+|-
+|Infested Kerrigan:||15x22
+|-
+|Uraj Crystal:||32x32
+|-
+|Khalis Crystal:||32x32
+|-
+|Disruption Web:||120x80
+|-
+|Dark Swarm:||160x160
+|}
+
+==Buildings==
+The first four columns are gap sizes: top, left, right, and bottom sides respectively.
+
+===Terran Buildings===
+[[File:Terran_Building_Sizes.jpg|right|650px]]
+
+{| class="sortable wikitable"
+!Building||top||<-||->||bot||box size||real size
+|-
+|Terran Command Center:||7||6||5||6||128x96||117x83
+|-
+|Terran Supply Depot:||10||10||9||5||96x64||77x49
+|-
+|Terran Refinery:||0||8||7||0||128x64||113x64
+|-
+|Terran Barracks:||8||16||7||15||128x96||105x73
+|-
+|Terran Academy:||0||8||3||7||96x64||85x57
+|-
+|Terran Factory:||8||8||7||7||128x96||113x81
+|-
+|Terran Starport:||8||16||15||9||128x96||97x79
+|-
+|Terran Science Facility:||10||16||15||9||128x96||97x77
+|-
+|Terran Engineering Bay:||16||16||15||19||128x96||97x61
+|-
+|Terran Armory:||0||0||0||9||96x64||96x55
+|-
+|Terran Missile Turret:||0||16||15||15||64x64||33x49
+|-
+|Terran Bunker:||8||16||15||15||96x64||65x41
+|}
+{| class="sortable wikitable"
+!Add-on||top||<-||->||bot||box size||real size
+|-
+|Terran Comsat Station:||16||-5||0||6||64x64||69x42 
+|-
+|Terran Nuclear Silo:||16||-5||0||6||64x64||69x42 
+|-
+|Terran Machine Shop:||8||-7||0||7||64x64||71x49 
+|-
+|Terran Control Tower:||8||-15||3||9||64x64||76x47
+|-
+|Terran Covert Ops:||8||-15||3||9||64x64||76x47
+|-
+|Terran Physics Lab:||8||-15||3||9||64x64||76x47
+|}
+
+The negative gap means that add-ons occupy some additional space to the left, beyond its grid, in order to seal the gap between itself and the building.
+Land units cannot walk over that space; however, landing or constructing buildings to the left of the add-on is still allowed, otherwise add-ons would extremely limit what would be able to be built next to them afterwards if you ever moved it.
+
+===Zerg Buildings===
+[[File:Zerg_Building_Sizes.jpg|right|650px]]
+{| class="sortable wikitable"
+!Building||top||<-||->||bot||box size||real size
+|-
+|Infested Command Center:||7||6||5||6||128x96||117x83
+|-
+|Zerg Hatchery:||16||15||14||15||128x96||99x65
+|-
+|Zerg Lair:||16||15||14||15||128x96||99x65
+|-
+|Zerg Hive:||16||15||14||15||128x96||99x65
+|-
+|Zerg Nydus Canal:||0||0||0||0||64x64||64x64
+|-
+|Zerg Hydralisk Den:||0||8||7||7||96x64||81x57
+|-
+|Zerg Defiler Mound:||0||16||15||27||128x64||97x37
+|-
+|Zerg Greater Spire:||0||4||3||7||64x64||57x57
+|-
+|Zerg Queen's Nest:||4||10||15||3||96x64||71x57
+|-
+|Zerg Evolution Chamber:||0||4||15||11||96x64||77x53
+|-
+|Zerg Ultralisk Cavern:||0||8||15||0||96x64||73x64
+|-
+|Zerg Spire:||0||4||3||7||64x64||57x57
+|-
+|Zerg Spawning Pool:||4||12||7||13||96x64||77x47
+|-
+|Zerg Creep Colony:||8||8||8||8||64x64||48x48
+|-
+|Zerg Spore Colony:||8||8||8||8||64x64||48x48
+|-
+|Zerg Sunken Colony:||8||8||8||8||64x64||48x48
+|-
+|Zerg Extractor:||0||0||0||0||128x64||128x64
+|}
+<br style="clear:both" />
+
+===Protoss Buildings===
+[[File:Protoss_Building_Sizes.jpg|right|650px]]
+{| class="sortable wikitable"
+!Building||top||<-||->||bot||box size||real size
+|-
+|Protoss Nexus:||9||8||7||8||128x96||113x79
+|-
+|Protoss Robotics Facility:||16||12||7||11||96x64||77x37
+|-
+|Protoss Pylon:||20||16||15||11||64x64||33x33
+|-
+|Protoss Assimilator:||0||16||15||7||128x64||97x57
+|-
+|Protoss Observatory:||16||4||3||3||96x64||89x45
+|-
+|Protoss Gateway:||16||16||15||7||128x96||97x73
+|-
+|Protoss Photon Cannon:||16||12||11||15||64x64||41x33
+|-
+|Protoss Citadel of Adun:||8||24||7||7||96x64||65x49
+|-
+|Protoss Cybernetics Core:||8||8||7||7||96x64||81x49
+|-
+|Protoss Templar Archives:||8||16||15||7||96x64||65x49
+|-
+|Protoss Forge:||8||12||11||11||96x64||73x45
+|-
+|Protoss Stargate:||8||16||15||15||128x96||97x73
+|-
+|Protoss Fleet Beacon:||0||8||0||7||96x64||88x57
+|-
+|Protoss Arbiter Tribunal:||4||4||3||3||96x64||89x57
+|-
+|Protoss Robotics Support Bay:||0||16||15||11||96x64||65x53
+|-
+|Protoss Shield Battery:||16||16||15||15||96x64||65x33
+|-
+|}
+<br style="clear:both" />
+===Natural Resources & Neutral Buildings===
+{| class="sortable wikitable"
+!Resource||top||<-||->||bot||box size||real size
+|-
+|Mineral Field (Type 1):||0||0||0||0||64x32||64x32
+|-
+|Mineral Field (Type 2):||0||0||0||0||64x32||64x32
+|-
+|Mineral Field (Type 3):||0||0||0||0||64x32||64x32
+|-
+|Vespene Geyser:||0||0||0||0||128x64||128x64
+|}
+{| class="sortable wikitable"
+!Building||top||<-||->||bot||box size||real size
+|-
+|Khaydarin Crystal Formation:||0||0||0||0||128x96||128x96
+|-
+|Protoss Temple:||0||0||0||0||224x96||224x96
+|-
+|Xel`Naga Temple:||30||0||0||0||160x128||160x98
+|-
+|Warp Gate:||0||0||0||0||96x64||96x64
+|-
+|Psi Disrupter:||10||0||10||0||160x96||150x86
+|-
+|Zerg Beacon:||0||0||0||0||96x64||96x64
+|-
+|Terran Beacon:||0||0||0||0||96x64||96x64
+|-
+|Protoss Beacon:||0||0||0||0||96x64||96x64
+|-
+|Zerg Flag Beacon:||0||0||0||0||96x64||96x64
+|-
+|Terran Flag Beacon:||0||0||0||0||96x64||96x64
+|-
+|Protoss Flag Beacon:||0||0||0||0||96x64||96x64
+|-
+|Power Generator:||20||8||0||4||128x96||120x72
+|-
+|Overmind Cocoon:||0||0||0||0||96x64||96x64
+|-
+|Norad II (Crashed):||0||0||0||0||96x64||96x64
+|-
+|Ion Cannon:||0||0||0||0||96x64||96x64
+|-
+|Zerg Overmind (With Shell):||16||0||0||7||160x96||160x73
+|-
+|Zerg Overmind:||16||0||0||7||160x96||160x73
+|-
+|Mature Chrysalis:||0||0||0||0||64x64||64x64
+|-
+|Zerg Cerebrate:||0||8||15||0||96x64||73x64
+|-
+|Zerg Cerebrate Daggoth:||0||8||15||0||96x64||73x64
+|-
+|Stasis Cell/Prison:||0||0||0||0||128x96||128x96
+|}
+
+===Miscellaneous Buildings===
+{| class="sortable wikitable"
+!Building||top||<-||->||bot||box size||real size
+|-
+|Floor Missile Trap:||0||0||0||0||64x64||64x64
+|-
+|Left Upper Level Door:||51||43||23||47||136x136||70x38
+|-
+|Right Upper Level Door:||51||24||42||47||136x136||70x38
+|-
+|Left Pit Door:||33||33||45||29||148x100||70x38
+|-
+|Right Pit Door:||33||46||32||29||148x100||70x38
+|-
+|Floor Gun Trap:||0||0||0||0||64x64||64x64
+|-
+|Left Wall Missile Trap:||16||16||16||16||64x64||32x32
+|-
+|Left Wall Flame Trap:||16||16||16||16||64x64||32x32
+|-
+|Right Wall Missile Trap:||16||16||16||16||64x64||32x32
+|-
+|Right Wall Flame Trap:||16||16||16||16||64x64||32x32
+|-
+|Start Location:||16||16||15||15||128x96||97x65
+|}
+
+==Related Articles==
+[[Walling]] for what these numbers actually mean and how they can be used in games.<br/>
+[[Walling as Terran]] A guide on Terran wall-ins.<br/>
+[[Walling as Zerg]] A guide on Zerg wall-ins.<br/>
+[[Protoss Fast Expand Forge Walling]] Walls for Protoss Forge FE

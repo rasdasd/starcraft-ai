@@ -270,6 +270,16 @@ Repeat collect and train: `explore_micro` loads the current `micro.npz`, so each
 around the latest policy. Learned micro only overrides the scripted action when its Q value is
 higher by `margin`.
 
+## Unit and building sizes
+
+`python/bwbot/data/unit_sizes.json` has pixel sizes of every unit and the free gap on each side of
+every building (the numbers walls are built from), keyed by BWAPI unit type name, with BWAPI's own
+`[left, up, right, down]` extents next to them. Generated from Liquipedia's
+[List of Unit and Building Sizes](https://liquipedia.net/starcraft/List_of_Unit_and_Building_Sizes)
+(CC BY-SA 3.0; snapshot in `unit_sizes.wiki`) by `scripts/gen_unit_sizes.py [--fetch]`, which checks
+every number against BWAPI's table. Two buildings in adjacent tiles leave `left.gap.right +
+right.gap.left` pixels; a unit walks through a gap at least as wide as it is.
+
 ## Protocol
 
 Defined in `proto/bw.fbs`; regenerate with `scripts/gen_proto.ps1` (Windows) or `scripts/gen_proto.sh`
