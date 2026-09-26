@@ -30,9 +30,36 @@ CLEAR_WALK = 4              # walk tiles (32 px) a unit needs to get around: an 
 class Wall:
     tiles: dict[int, tuple[int, int]] = field(default_factory=dict)    # unit type -> top-left tile
     gap: int = 0                                                          # pixels between the pair
+    center: tuple[float, float] = (0.0, 0.0)                              # the ramp (pixels)
+    inside: tuple[float, float] = (0.0, 0.0)                              # a point in the main
+    outside: tuple[float, float] = (0.0, 0.0)                             # a point below the ramp
 
     def tile(self, t: int) -> Optional[tuple[int, int]]:
         return self.tiles.get(int(t))
+
+    def still_open(self, game: GameInfo, units) -> bool:
+        """With the pair and every building / resource in `units` (observation rows) in place, big
+        units can still get past the ramp (resources seen since planning can close it)."""
+        own = [box(game, t, tile) for t, tile in self.tiles.items()]
+        return _way_around(game, own + obstacle_boxes(game, units, self.center), self.center, self.inside,
+                           self.outside)
+
+
+def obstacle_boxes(game: GameInfo, units, center) -> list[tuple[int, int, int, int]]:
+    """Pixel boxes of the buildings and resources in `units` within WINDOW tiles of `center`."""
+    from bwbot.observation import UnitTypeFlag as F
+    ut = game.unit_types
+    out = []
+    for u in units:
+        t = int(u["type"])
+        if not ut["flags"][t] & (F.Building | F.ResourceContainer):
+            continue
+        x, y = int(u["x"]), int(u["y"])
+        if abs(x - center[0]) > WINDOW * 32 + 128 or abs(y - center[1]) > WINDOW * 32 + 128:
+            continue
+        out.append((x - int(ut["dimension_left"][t]), y - int(ut["dimension_up"][t]),
+                    x + int(ut["dimension_right"][t]), y + int(ut["dimension_down"][t])))
+    return out
 
 
 def _dims(game: GameInfo, t: int) -> tuple[int, int, int, int, int, int]:
@@ -71,8 +98,10 @@ def arrangement(game: GameInfo, a: int, b: int, fits: int, blocked: int) -> Opti
     return None
 
 
-def plan_wall(game: GameInfo, occupied: Optional[np.ndarray] = None) -> Optional[Wall]:
-    """Barracks + Depot pair near the top of our main ramp, or None (no ramp, no room, no layout)."""
+def plan_wall(game: GameInfo, occupied: Optional[np.ndarray] = None, units=()) -> Optional[Wall]:
+    """Barracks + Depot pair near the top of our main ramp, or None (no ramp, no room, no layout).
+    `occupied`: tiles not to build on; `units`: observation rows whose buildings / resources the
+    way around the pair must avoid."""
     choke, main, nat = game.main_choke, game.main, game.natural
     if choke is None or main is None or nat is None:
         return None
@@ -117,11 +146,12 @@ def plan_wall(game: GameInfo, occupied: Optional[np.ndarray] = None) -> Optional
                 score = math.hypot(gx - cx, gy - cy) + 0.5 * abs(gx - cx)
                 cands.append((score, lt, rt))
     cands.sort()
-    if cands and not _way_around(game, [], choke.center, inside, outside):
+    seen = obstacle_boxes(game, units, choke.center)
+    if cands and not _way_around(game, seen, choke.center, inside, outside):
         return None                      # the check can't tell a sealed ramp from an open one here
     for _, lt, rt in cands:
-        if _way_around(game, [box(game, left, lt), box(game, right, rt)], choke.center, inside, outside):
-            wall = Wall({left: lt, right: rt}, gap)
+        if _way_around(game, seen + [box(game, left, lt), box(game, right, rt)], choke.center, inside, outside):
+            wall = Wall({left: lt, right: rt}, gap, tuple(choke.center), inside, outside)
             log.info("wall: %s at %s, %s at %s (gap %d px)", game.type_name(left), lt, game.type_name(right),
                      rt, gap)
             return wall

@@ -104,6 +104,7 @@ class Macro(Component):
         self._query = 0
         enemy = g.player(g.enemy_id)
         self.wall: Optional[Wall] = None
+        self._wall_skips: set[tuple[int, str]] = set()
         self._wall_pending = (self.use_wall and self.race == int(Race.Terran) and
                               (enemy is None or int(enemy.race) in WALL_VS))
         wt = int(U.Terran_SCV if self.race == int(Race.Terran) else U.Protoss_Probe
@@ -366,17 +367,30 @@ class Macro(Component):
         """The wall's tile for `t` while it is still free (the first Barracks / Depot go there)."""
         if self._wall_pending:
             self._wall_pending = False
-            self.wall = plan_wall(bb.game, occupancy(bb.obs))
+            self.wall = plan_wall(bb.game, occupancy(bb.obs), bb.obs.units)
         tile = self.wall.tile(t) if self.wall is not None else None
-        if tile is None or tile in self.placer.failed:
+        if tile is None:
             return None
         cells = footprint(bb.game, t, tile)
-        if any(c in self.placer.reserved for c in cells):
-            return None
-        occ = occupancy(bb.obs)
-        if any(occ[y, x] for x, y in cells):
-            return None
-        return tile
+        occ = occupancy(bb.obs, pad=0)          # resources seen since planning may sit close; overlap only
+        why = ("failed" if tile in self.placer.failed else
+               "reserved" if any(c in self.placer.reserved for c in cells) else
+               "occupied" if any(occ[y, x] for x, y in cells) else None)
+        if why is None:
+            if not self.wall.still_open(bb.game, bb.obs.units):
+                self.placer.fail(tile)
+                why = "would close the ramp"
+            else:
+                return tile
+        if (t, why) not in self._wall_skips:
+            self._wall_skips.add((t, why))
+            near = sorted({bb.game.type_name(int(u["type"])) for u in bb.obs.units
+                           if abs(int(u["x"]) // 32 - tile[0]) <= 6 and abs(int(u["y"]) // 32 - tile[1]) <= 6
+                           and bb.game.unit_types["flags"][int(u["type"])]
+                           & (F.Building | F.ResourceContainer)})
+            log.info("f%d wall %s at %s skipped: %s (near: %s)", bb.frame, bb.game.type_name(t), tile, why,
+                     ", ".join(near))
+        return None
 
     def _site(self, bb: Blackboard, t: int, near: Optional[tuple[int, int]]) -> Optional[tuple[int, int]]:
         obs, g = bb.obs, bb.game

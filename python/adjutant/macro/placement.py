@@ -34,9 +34,9 @@ def footprint(game: GameInfo, building: int, tile: tuple[int, int]) -> list[tupl
     return [(tile[0] + x, tile[1] + y) for y in range(th) for x in range(tw)]
 
 
-def occupancy(obs: Observation, keep_free: Iterable[tuple[int, int]] = ()) -> np.ndarray:
-    """(h, w) grid of tiles we must not build on: buildings, padded resources, the lane between each
-    of our depots and its minerals, and the hall site of every base in `keep_free`."""
+def occupancy(obs: Observation, keep_free: Iterable[tuple[int, int]] = (), pad: int = RESOURCE_PAD) -> np.ndarray:
+    """(h, w) grid of tiles we must not build on: buildings, resources padded by `pad`, the lane
+    between each of our depots and its minerals, and the hall site of every base in `keep_free`."""
     g = obs.game
     occ = np.zeros((g.map_height, g.map_width), dtype=bool)
     types = np.clip(obs.units["type"], 0, len(g.unit_types) - 1)
@@ -45,8 +45,8 @@ def occupancy(obs: Observation, keep_free: Iterable[tuple[int, int]] = ()) -> np
     for u, t in zip(obs.units[solid], types[solid]):
         tw, th = int(g.unit_types["tile_width"][t]), int(g.unit_types["tile_height"][t])
         tx, ty = int(u["x"]) // 32 - tw // 2, int(u["y"]) // 32 - th // 2
-        pad = RESOURCE_PAD if g.unit_types["flags"][t] & UnitTypeFlag.ResourceContainer else 0
-        occ[max(0, ty - pad):ty + th + pad, max(0, tx - pad):tx + tw + pad] = True
+        p = pad if g.unit_types["flags"][t] & UnitTypeFlag.ResourceContainer else 0
+        occ[max(0, ty - p):ty + th + p, max(0, tx - p):tx + tw + p] = True
     depots = obs.units[(obs.units["player"] == obs.self_id) & ((flags & UnitTypeFlag.ResourceDepot) != 0)]
     fields = obs.minerals_fields
     for d in depots if len(fields) else ():
