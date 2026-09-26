@@ -44,6 +44,18 @@ GAME = ROOT / "game"
 BOTS = ROOT / "bots"
 SHIM_DLL = ROOT / "shim" / "build" / "shim_module.dll"
 API = "https://sscaitournament.com/api/bots.php"
+# A multiplayer character as StarCraft 1.16.1 writes it (the file name is the character's name).
+# BWAPI 4.1.2's auto_menu crashes in character creation, so every instance gets one up front.
+SEED_MPC = bytes.fromhex("a5f9d9e6010000001e0000000004668888002000000000"
+                         "26b0aba5260c193575e8847143f73d182d01ff")
+
+
+def seed_character(inst: Path, character: str) -> None:
+    """`character` as the instance's only multiplayer character (else BWAPI 4.1.2 picks the last one)."""
+    (inst / "characters").mkdir(exist_ok=True)
+    for mpc in (inst / "characters").glob("*.mpc"):
+        mpc.unlink()
+    (inst / "characters" / f"{character}.mpc").write_bytes(SEED_MPC)
 
 
 # ---------------------------------------------------------------------------- bots
@@ -313,9 +325,12 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
     base = Path(args.instances) / f"s{slot}"
     inst_a, inst_b = base / "inst_a", base / "inst_b"
     host_name = f"{me.name[:14]}-{run_id[-3:]}{slot}"      # unique game name: the joiner looks it up
+    opp_char = safe_name(meta["name"])[:20]
     prepare_instance(inst_a, GAME / "bwapi-data" / "BWAPI.dll", [SHIM_DLL])
     ai_files = [p for p in (bot_dir / "AI").iterdir()]
     prepare_instance(inst_b, bot_dir / "BWAPI.dll", ai_files)
+    seed_character(inst_a, host_name)
+    seed_character(inst_b, opp_char)
     client = meta["botType"] != "AI_MODULE"
     game_id = f"{run_id}-g{index:04d}"
     replay = f"bwapi-data/replays/{game_id}.rep" if args.replays else ""
@@ -325,7 +340,7 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         bwapi_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", host_name, map_path, True, replay,
                   20 + 40 * slot, tm_a, args.lan_mode), encoding="utf-8")
     (inst_b / "bwapi-data" / "bwapi.ini").write_text(
-        bwapi_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"), meta["name"],
+        bwapi_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"), opp_char,
                   map_path, False, "", 680 + 40 * slot, tm_b, args.lan_mode, join=host_name), encoding="utf-8")
     _no_tips()
     port = args.port + slot
@@ -426,7 +441,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--out", default=str(ROOT / "runs"))
     ap.add_argument("--instances", default=str(ROOT / "runs" / "botmatch"))
     ap.add_argument("--no-replays", dest="replays", action="store_false")
-    ap.add_argument("--brain-args", nargs="*", default=[], help="extra bwbot.run options for our brain")
+    ap.add_argument("--brain-args", nargs="*", action="extend", default=[],
+                    help="extra bwbot.run options for our brain (repeatable: --brain-args=--speed=42)")
     ap.add_argument("--no-tm", dest="tm", action="store_false",
                     help="don't load the Tournament Manager module (speed 0 + frame skip in both clients)")
     ap.add_argument("--tm-frame-skip", type=int, default=256, help="render every N frames (tournament module)")

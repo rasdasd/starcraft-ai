@@ -5,13 +5,20 @@
     python run.py --race Zerg --speed 42
     python run.py --profile search         # pick a profile (see --list)
     python run.py --games 3                # play exactly 3 games, then shut everything down
+    python run.py --opponent Dave_Churchill            # watch a game against a published bot
+    python run.py --opponent Locutus --race Zerg --map "maps/BroodWar/aiide/(2)Destination.scx"
     python run.py --stop                   # tear everything down
-    python run.py --list                   # list valid --bot values (and their profiles)
+    python run.py --list                   # list valid --bot values, profiles and local opponents
 
 The visible game (StarCraft 1.16.1 + BWAPI) only exists on Windows, so this script always drives
 scripts/run_native.ps1 with PowerShell. From WSL it goes through Windows interop (powershell.exe),
 which puts the game, shim and bot windows on the Windows desktop. For headless OpenBW games use
 scripts/run_openbw.sh instead.
+
+With --opponent the enemy is a published SSCAIT bot instead of the built-in AI: this runs
+`harness.winematch --watch` in WSL (as root, for its network namespaces). Both clients run under
+Wine; the opponent headless, ours in a WSLg window at a watchable speed. Bots in bots/ are used
+as-is; any other SSCAIT name is downloaded on first use.
 
 Add new options to `build_parser()` and translate them in `to_ps_args()`.
 """
@@ -19,16 +26,22 @@ from __future__ import annotations
 
 import argparse
 import ast
+import json
 import os
 import platform
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 NATIVE_SCRIPT = ROOT / "scripts" / "run_native.ps1"
 PYTHON_DIR = ROOT / "python"
+BOTS_DIR = ROOT / "bots"
+WSL = "wsl.exe"
+WSL_DISTRO = os.environ.get("BWBOT_WSL_DISTRO", "Ubuntu")
+WATCH_SPEED = 42            # ms per frame: the game's own "Fastest", what human games are played at
 SKIP_DIRS = {".venv", "tests", "__pycache__", "build", "dist"}
 
 
@@ -42,6 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--map", help="map relative to game/, e.g. maps/BroodWar/sscai/(4)Python.scx")
     p.add_argument("--race", choices=["Terran", "Protoss", "Zerg", "Random"], help="bot race")
     p.add_argument("--enemy-race", choices=["Terran", "Protoss", "Zerg", "Random"], help="built-in AI race")
+    p.add_argument("--opponent", help="play a published bot instead of the built-in AI, e.g. Dave_Churchill "
+                                      f"(speed defaults to {WATCH_SPEED}; see --list)")
     p.add_argument("--games", type=int, help="play exactly N games, then shut down StarCraft/shim/bot (default: forever)")
     p.add_argument("--no-bot", action="store_true", help="start only StarCraft + shim; run the bot yourself")
     p.add_argument("--no-game", action="store_true", help="start only shim + bot (StarCraft already running)")
@@ -144,6 +159,60 @@ def print_bots() -> None:
             print(f"\nProfiles for {b['module']} (select with --profile <name>):")
             for name in b["profiles"]:
                 print(f"  {name}")
+    opponents = local_opponents()
+    if opponents:
+        print("\nOpponents in bots/ (select with --opponent <name>; other SSCAIT names are downloaded):")
+        for name, race in opponents:
+            print(f"  {name.ljust(20)}  {race}")
+
+
+def local_opponents() -> list[tuple[str, str]]:
+    out = []
+    for meta in sorted(BOTS_DIR.glob("*/bot.json")):
+        try:
+            race = json.loads(meta.read_text(encoding="utf-8")).get("race", "")
+        except (OSError, ValueError):
+            continue
+        out.append((meta.parent.name, race))
+    return out
+
+
+def wsl_path(path: Path) -> str:
+    if os.name != "nt":
+        return str(path)
+    drive, rest = str(path).split(":", 1)
+    return f"/mnt/{drive.lower()}{rest.replace(chr(92), '/')}"
+
+
+def wsl_python() -> str:
+    """The WSL venv winematch runs in: $BWBOT_WSL_PYTHON, else ~/.venvs/bwbot of the default WSL user."""
+    if os.environ.get("BWBOT_WSL_PYTHON"):
+        return os.environ["BWBOT_WSL_PYTHON"]
+    home = subprocess.run([WSL, "-d", WSL_DISTRO, "--", "sh", "-c", "echo $HOME"], capture_output=True,
+                          text=True).stdout.strip()
+    if not home:
+        sys.exit(f"--opponent needs WSL ({WSL_DISTRO}); set BWBOT_WSL_DISTRO / BWBOT_WSL_PYTHON if it lives elsewhere")
+    return f"{home}/.venvs/bwbot/bin/python"
+
+
+def watch_cmd(a: argparse.Namespace) -> list[str]:
+    """One `harness.winematch --watch` game: the opponent headless under Wine, our client in a WSLg
+    window at a watchable speed, and a wall-clock timeout that fits the frame limit at that speed."""
+    if a.no_bot or a.no_game:
+        sys.exit("--opponent starts both games and our bot itself; --no-bot / --no-game don't apply")
+    spec = a.bot + (f"@{a.profile}" if a.profile else "") + (f"/{a.race}" if a.race else "")
+    speed = WATCH_SPEED if a.speed is None else a.speed
+    max_frames = 24 * 60 * 25
+    minutes = max_frames * max(speed, 42) / 1000 / 60 + 10
+    brain = [f"--speed={speed}"] + ([f"--frame-skip={a.frame_skip}"] if a.frame_skip is not None else [])
+    cmd = [WSL, "-d", WSL_DISTRO, "-u", "root", "--cd", wsl_path(PYTHON_DIR), "--", wsl_python(),
+           "-m", "harness.winematch", "--watch", "--p1", spec,
+           "--opponent", a.opponent, "--games", str(a.games or 1), "--max-frames", str(max_frames),
+           "--timeout-min", f"{minutes:.0f}", "--run-id", time.strftime("watch%Y%m%d-%H%M%S"),
+           *(f"--brain-args={b}" for b in brain)]
+    if a.map:
+        cmd += ["--maps", a.map]
+    return cmd
 
 
 def to_ps_args(a: argparse.Namespace) -> list[str]:
@@ -221,6 +290,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.profile and not a.stop:
         a.profile = resolve_profile(a.bot, a.profile)
+    if a.opponent and not a.stop:
+        if os.name != "nt" and not is_wsl():
+            sys.exit("--opponent needs Windows or WSL (the visible game is Windows-only)")
+        cmd = watch_cmd(a)
+        print("+", " ".join(cmd), flush=True)
+        return subprocess.call(cmd)
     exe, script = powershell_invocation(NATIVE_SCRIPT)
     cmd = [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script, *to_ps_args(a)]
     print("+", " ".join(cmd), flush=True)

@@ -12,6 +12,9 @@ sockets are per network namespace and WSLg owns /tmp/.X11-unix) and its own Wine
 slots neither share UDP 6111 nor see each other's games. Needs root (namespaces) and the Linux
 packages wine, wine32, xvfb (`scripts/setup_wsl.sh` does not install them).
 
+`--watch` puts our client in a window on $DISPLAY instead (WSLg's X server: its path socket is
+reachable from the namespaces) and renders every frame; `python run.py --opponent NAME` uses it.
+
 Bots, bwapi.ini, the tournament module (speed 0 + frame skip in both clients) and the results
 format are shared with `harness.botmatch`; instances and prefixes live under /root/sc (ext4).
 """
@@ -31,17 +34,13 @@ from pathlib import Path
 from typing import Optional
 
 from .botmatch import (GAME, ROOT, SHIM_DLL, bwapi_ini, ensure_bwta_dlls, game_row, install_tournament_module,
-                       load_bot, safe_name)
+                       load_bot, safe_name, seed_character)
 from .selfplay import DEFAULT_MAPS, Player
 
 WORK = Path(os.environ.get("WINEMATCH_DIR", "/root/sc"))
 WINE_ENV = {"WINEDEBUG": "-all", "WINEDLLOVERRIDES": "mscoree,mshtml="}
 SC_REG = "HKEY_CURRENT_USER\\Software\\Blizzard Entertainment\\Starcraft"
 RENDERER = os.environ.get("WINEMATCH_RENDERER", "gdi")    # ~30% faster than wined3d's GL on llvmpipe
-# A multiplayer character as StarCraft 1.16.1 writes it (the file name is the character's name).
-# BWAPI 4.1.2's auto_menu crashes in character creation, so every instance gets one up front.
-SEED_MPC = bytes.fromhex("a5f9d9e6010000001e0000000004668888002000000000"
-                         "26b0aba5260c193575e8847143f73d182d01ff")
 
 
 def sh(*cmd: str, check: bool = False, **kw) -> subprocess.CompletedProcess:
@@ -127,18 +126,15 @@ def prepare_instance(inst: Path, bwapi_dll: Path, ai_files: list[Path], characte
         (bd / sub).mkdir(parents=True, exist_ok=True)
     for stale in ("TournamentModule.dll", "tm_settings.ini"):
         (bd / stale).unlink(missing_ok=True)
-    (inst / "characters").mkdir(exist_ok=True)
-    for mpc in (inst / "characters").glob("*.mpc"):     # else BWAPI 4.1.2 picks the last bot's character
-        mpc.unlink()
-    (inst / "characters" / f"{character}.mpc").write_bytes(SEED_MPC)
+    seed_character(inst, character)
     shutil.copy2(bwapi_dll, bd / "BWAPI.dll")
     for f in ai_files:
         (shutil.copytree if f.is_dir() else shutil.copy2)(f, bd / "AI" / f.name)
 
 
-def lan_ini(*a, **kw) -> str:
-    return bwapi_ini(*a, lan_mode="Local Area Network (UDP)", join="JOIN_FIRST", **kw).replace(
-        "windowed = ON", "windowed = OFF")
+def lan_ini(*a, windowed: bool = False, **kw) -> str:
+    ini = bwapi_ini(*a, lan_mode="Local Area Network (UDP)", join="JOIN_FIRST", **kw)
+    return ini if windowed else ini.replace("windowed = ON", "windowed = OFF")
 
 
 # ---------------------------------------------------------------------------- match
@@ -159,10 +155,11 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
     client = meta["botType"] != "AI_MODULE"
     game_id = f"{run_id}-g{index:04d}"
     replay = f"bwapi-data/replays/{game_id}.rep" if args.replays else ""
-    tm = {s: install_tournament_module(inst[s], args.tm_frame_skip) if args.tm else "" for s in "ab"}
+    tm = {s: install_tournament_module(inst[s], args.tm_frame_skip) if args.tm and not (args.watch and s == "a")
+          else "" for s in "ab"}
     (inst["a"] / "bwapi-data" / "bwapi.ini").write_text(
         lan_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", names["a"], map_path, True, replay, 0,
-                tm["a"]), encoding="utf-8")
+                tm["a"], windowed=args.watch), encoding="utf-8")
     (inst["b"] / "bwapi-data" / "bwapi.ini").write_text(
         lan_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"),
                 names["b"], map_path, False, "", 0, tm["b"]), encoding="utf-8")
@@ -184,14 +181,17 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         procs.append(p)
         return p
 
+    shown = {"a"} if args.watch else set()
+
     def wine_env(side: str, **extra: str) -> dict:
-        return dict(os.environ, DISPLAY=f":{100 + 2 * slot + (side == 'b')}", WINEPREFIX=str(prefix[side]),
-                    **WINE_ENV, **extra)
+        display = os.environ.get("DISPLAY", ":0") if side in shown else f":{100 + 2 * slot + (side == 'b')}"
+        return dict(os.environ, DISPLAY=display, WINEPREFIX=str(prefix[side]), **WINE_ENV, **extra)
 
     try:
         for s in "ab":
-            spawn(s, ["Xvfb", wine_env(s)["DISPLAY"], "-screen", "0", "800x600x24", "-nolisten", "tcp"],
-                  f"xvfb_{s}.log", dict(os.environ), inst[s])
+            if s not in shown:
+                spawn(s, ["Xvfb", wine_env(s)["DISPLAY"], "-screen", "0", "800x600x24", "-nolisten", "tcp"],
+                      f"xvfb_{s}.log", dict(os.environ), inst[s])
         time.sleep(1.0)
         launch = ["wine", "injectory_x86.exe", "--launch", "StarCraft.exe", "--inject", "bwapi-data/BWAPI.dll"]
         spawn("a", launch, "wine_a.log",
@@ -254,13 +254,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--run-id", default=time.strftime("wm%Y%m%d-%H%M%S"))
     ap.add_argument("--out", default=str(ROOT / "runs"))
     ap.add_argument("--no-replays", dest="replays", action="store_false")
-    ap.add_argument("--brain-args", nargs="*", default=[], help="extra bwbot.run options for our brain")
+    ap.add_argument("--brain-args", nargs="*", action="extend", default=[],
+                    help="extra bwbot.run options for our brain (repeatable: --brain-args=--speed=42)")
     ap.add_argument("--no-tm", dest="tm", action="store_false", help="don't load the Tournament Manager module")
     ap.add_argument("--tm-frame-skip", type=int, default=256, help="render every N frames (tournament module)")
+    ap.add_argument("--watch", action="store_true",
+                    help="show our client in a window on $DISPLAY (WSLg), every frame rendered; the opponent "
+                         "stays headless. Pace it with --brain-args=--speed=42. Implies --parallel 1")
     args = ap.parse_args(argv)
 
     if not args.opponent:
         ap.error("at least one --opponent")
+    if args.watch:
+        args.parallel = 1
     if os.name == "nt" or os.geteuid() != 0:
         raise SystemExit("winematch needs root in WSL/Linux: wsl -d Ubuntu -u root -- <venv>/bin/python -m "
                          "harness.winematch ...")
