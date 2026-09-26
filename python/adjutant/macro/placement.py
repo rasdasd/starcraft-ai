@@ -11,8 +11,8 @@ import numpy as np
 from bwbot import GameInfo, Observation, UnitType as U
 from bwbot.observation import TileFlag, UnitTypeFlag
 
-ADDON_PARENTS = {int(U.Terran_Barracks), int(U.Terran_Factory), int(U.Terran_Starport),
-                 int(U.Terran_Science_Facility), int(U.Terran_Command_Center)}
+ADDON_PARENTS = {int(U.Terran_Factory), int(U.Terran_Starport), int(U.Terran_Science_Facility),
+                 int(U.Terran_Command_Center)}
 HALL_W, HALL_H = 4, 3
 PSI_HALF_W, PSI_HALF_H = 7.5, 4.5        # pylon field, slightly shrunk so BWAPI's edge cases are skipped
 RESOURCE_PAD = 3

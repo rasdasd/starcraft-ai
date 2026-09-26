@@ -68,6 +68,52 @@ def _world(race=Race.Terran, workers=8, minerals=50, gas=0):
 
 
 # ---------------------------------------------------------------------------- placement
+REAL_DIMS = {U.Terran_Barracks: (48, 40, 56, 32), U.Terran_Supply_Depot: (38, 22, 38, 26),
+             U.Terran_Marine: (8, 9, 8, 10), U.Protoss_Zealot: (11, 5, 11, 13), U.Terran_SCV: (11, 11, 11, 11)}
+
+
+def _real_dims(g):
+    """BWAPI's pixel extents for the types the wall depends on (the fake game's are symmetric)."""
+    for t, (left, up, right, down) in REAL_DIMS.items():
+        r = g.unit_types[int(t)]
+        r["dimension_left"], r["dimension_up"], r["dimension_right"], r["dimension_down"] = left, up, right, down
+
+
+def test_wall_layout_follows_unit_dimensions():
+    from adjutant.macro.wall import arrangement, side_gap
+    g = make_game()
+    _real_dims(g)
+    rax, depot = int(U.Terran_Barracks), int(U.Terran_Supply_Depot)
+    assert arrangement(g, depot, rax, U.Terran_Marine, U.Protoss_Zealot) == (rax, depot, 17)
+    assert side_gap(g, depot, rax) == 25                  # a zealot (23 px) walks through that one
+
+
+def test_first_depot_and_barracks_make_the_wall_vs_protoss():
+    rax, depot = int(U.Terran_Barracks), int(U.Terran_Supply_Depot)
+    tiles = {}
+    for enemy in (Race.Protoss, Race.Zerg):
+        g = make_game(self_race=Race.Terran, enemy_race=enemy)
+        _real_dims(g)
+        w = FakeWorld(g, minerals=400)
+        w.standard_start(8)
+        bot = _bot(g, w, items=[("build", depot, 60, "supply"), ("build", rax, 50, "rax")])
+        sim = Sim(w)
+        m = _comp(bot, "macro")
+        for _ in range(6):
+            _tick(bot, w, sim)
+        tiles[enemy] = {}
+        for j in m.jobs:                              # the first of each; the plan keeps asking for more
+            tiles[enemy].setdefault(j.unit_type, j.tile)
+        if enemy == Race.Protoss:
+            assert m.wall is not None
+            lt, rt = m.wall.tile(rax), m.wall.tile(depot)
+            assert rt == (lt[0] + 4, rt[1]) and lt[1] <= rt[1] <= lt[1] + 1
+            assert tiles[enemy] == {depot: rt, rax: lt}
+        else:
+            assert m.wall is None
+    assert tiles[Race.Zerg][depot] != tiles[Race.Protoss][depot]
+
+
 def test_protoss_buildings_go_in_pylon_power_and_zerg_on_creep():
     from bwbot.observation import TileFlag, UnitTypeFlag
     from adjutant.macro.placement import find_build_tile, occupancy

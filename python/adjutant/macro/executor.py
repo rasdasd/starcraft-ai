@@ -32,7 +32,8 @@ from ..mapgraph import MapGraph
 from ..techtree import TechTree
 from .bases import BaseTracker
 from .jobs import WALKING, BuildJob, JobRunner
-from .placement import Placer
+from .placement import Placer, footprint, occupancy
+from .wall import Wall, plan_wall
 from .workers import WorkerPool, pick_worker
 
 log = logging.getLogger("adjutant.macro")
@@ -42,6 +43,8 @@ HALL = {int(Race.Terran): int(U.Terran_Command_Center), int(Race.Zerg): int(U.Ze
 REFINERIES = (int(U.Terran_Refinery), int(U.Protoss_Assimilator), int(U.Zerg_Extractor))
 SHIM_QUERY_FRAMES = 24 * 2
 NO_SITE_RETRY_FRAMES = 24 * 2     # a full spiral search that found nothing is not repeated sooner
+WALL_TYPES = (int(U.Terran_Barracks), int(U.Terran_Supply_Depot))
+WALL_VS = (int(Race.Protoss), int(Race.Random), int(Race.Unknown))
 
 
 def _building_something(u) -> bool:
@@ -76,8 +79,9 @@ class Macro(Component):
     order = 0
 
     def __init__(self, max_jobs: int = 3, early_dispatch: bool = True, gas_bank: Optional[tuple[int, int]] = None,
-                 site_timeout_s: float = 15, draw: bool = True) -> None:
+                 site_timeout_s: float = 15, draw: bool = True, wall: bool = True) -> None:
         self.max_jobs = max_jobs              # building jobs walking at once
+        self.use_wall = wall                  # Terran vs Protoss: Barracks + Depot marine gap at the ramp
         self.early_dispatch = early_dispatch
         self.gas_bank = tuple(gas_bank) if gas_bank else None   # (resume, pull) gas levels; None: always mine gas
         self.site_timeout = int(site_timeout_s * 24)
@@ -98,6 +102,10 @@ class Macro(Component):
         self._no_site: dict[int, int] = {}
         self.shim: dict[int, tuple[int, Optional[tuple[int, int]]]] = {}   # type -> (query frame, answer)
         self._query = 0
+        enemy = g.player(g.enemy_id)
+        self.wall: Optional[Wall] = None
+        self._wall_pending = (self.use_wall and self.race == int(Race.Terran) and
+                              (enemy is None or int(enemy.race) in WALL_VS))
         wt = int(U.Terran_SCV if self.race == int(Race.Terran) else U.Protoss_Probe
                  if self.race == int(Race.Protoss) else U.Zerg_Drone)
         self.worker_speed = max(1.0, float(g.unit_types["top_speed"][wt]))
@@ -354,8 +362,28 @@ class Macro(Component):
             return False
         return not any(j.unit_type in REFINERIES for j in self.jobs)
 
+    def _wall_site(self, bb: Blackboard, t: int) -> Optional[tuple[int, int]]:
+        """The wall's tile for `t` while it is still free (the first Barracks / Depot go there)."""
+        if self._wall_pending:
+            self._wall_pending = False
+            self.wall = plan_wall(bb.game, occupancy(bb.obs))
+        tile = self.wall.tile(t) if self.wall is not None else None
+        if tile is None or tile in self.placer.failed:
+            return None
+        cells = footprint(bb.game, t, tile)
+        if any(c in self.placer.reserved for c in cells):
+            return None
+        occ = occupancy(bb.obs)
+        if any(occ[y, x] for x, y in cells):
+            return None
+        return tile
+
     def _site(self, bb: Blackboard, t: int, near: Optional[tuple[int, int]]) -> Optional[tuple[int, int]]:
         obs, g = bb.obs, bb.game
+        if near is None and (self.wall is not None or self._wall_pending) and t in WALL_TYPES:
+            tile = self._wall_site(bb, t)
+            if tile is not None:
+                return tile
         anchors = [tuple(near)] if near is not None else \
             [tuple(bb.world.main_tile)] + [tuple(b.tile) for b in self.bases.bases if b.completed]
         if self.tree.is_refinery(t) or bb.frame - self._no_site.get(t, -10 ** 9) >= NO_SITE_RETRY_FRAMES:
