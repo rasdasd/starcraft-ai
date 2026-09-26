@@ -4,10 +4,12 @@ A base is ours when one of our resource depots (completed or not) stands on its 
 Zerg macro hatcheries elsewhere are not bases. Mineral fields and geysers belong to the nearest base
 centre within `RESOURCE_PX`. The next expansion is the free base closest by ground to our bases
 (the natural first), skipping bases the enemy holds or has buildings near, bases that are not
-ground-reachable from the main, and sites that were recently found blocked or dangerous.
+ground-reachable from the main without crossing a blocking choke (a mineral wall or neutral
+building), and sites that were recently found blocked or dangerous.
 """
 from __future__ import annotations
 
+import logging
 import math
 from typing import Optional
 
@@ -18,6 +20,8 @@ from bwbot import UnitFlag
 from bwbot.observation import UnitTypeFlag
 
 from ..mapgraph import MapGraph
+
+log = logging.getLogger("adjutant.macro")
 
 RESOURCE_PX = 12 * 32
 HALL_PX = 4 * 32             # a depot this close to a base centre stands on its hall site
@@ -32,6 +36,7 @@ class BaseTracker:
         self.bases: list[OwnBase] = []
         self.patch_base: dict[int, int] = {}      # mineral field id -> base id
         self.graph: Optional[MapGraph] = None
+        self._walled: set[int] = set()
 
     def on_start(self, game, graph: Optional[MapGraph] = None) -> None:
         self.game = game
@@ -117,8 +122,12 @@ class BaseTracker:
             cx, cy = base.center
             if any((cx - x) ** 2 + (cy - y) ** 2 < ENEMY_NEAR_PX ** 2 for x, y in enemy_blds):
                 continue
-            if graph is not None and self.main_area >= 0 and not graph.connected(self.main_area, base.area_id):
-                continue
+            if graph is not None and self.main_area >= 0 \
+                    and not graph.connected(self.main_area, base.area_id, open_only=True):
+                if base.id not in self._walled and graph.connected(self.main_area, base.area_id):
+                    self._walled.add(base.id)
+                    log.info("base %d at %s is behind a blocking choke: not an expansion", base.id, base.tile)
+                continue                        # an island, or behind a mineral wall / neutral building
             if base.id == natural_id:
                 return base.id
             d_home = min(self._ground(h, base) for h in homes)

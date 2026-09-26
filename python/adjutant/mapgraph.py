@@ -34,28 +34,32 @@ class MapGraph:
     def distance(self, p: tuple[int, int], area_p: int, q: tuple[int, int], area_q: int) -> float:
         return self.route(p, area_p, q, area_q)[0]
 
-    def connected(self, area_p: int, area_q: int) -> bool:
+    def connected(self, area_p: int, area_q: int, open_only: bool = False) -> bool:
+        """A choke path between the areas; `open_only`: one that crosses no blocking choke (what a
+        worker told to move can walk)."""
         if area_p == area_q:
             return True
-        return self.route((0, 0), area_p, (0, 0), area_q)[1]
+        return self.route((0, 0), area_p, (0, 0), area_q, open_only)[1]
 
-    def route(self, p, area_p: int, q, area_q: int) -> tuple[float, bool]:
+    def route(self, p, area_p: int, q, area_q: int, open_only: bool = False) -> tuple[float, bool]:
         """(distance in pixels, found a choke path)."""
-        key = (tuple(p), area_p, tuple(q), area_q)
+        key = (tuple(p), area_p, tuple(q), area_q, open_only)
         hit = self._cache.get(key)
         if hit is not None:
             return hit
         if area_p == area_q:
             out = (_d(p, q), True)
         else:
-            out = self._dijkstra(p, area_p, q, area_q)
+            out = self._dijkstra(p, area_p, q, area_q, open_only)
         self._cache[key] = out
         return out
 
-    def _dijkstra(self, p, area_p, q, area_q) -> tuple[float, bool]:
+    def _dijkstra(self, p, area_p, q, area_q, open_only: bool = False) -> tuple[float, bool]:
         dist: dict[int, float] = {}
         heap: list[tuple[float, int]] = []
         for i in self.by_area.get(area_p, ()):
+            if open_only and self.chokes[i].blocking:
+                continue
             d0 = _d(p, self.chokes[i].center) + self.cost[i]
             if d0 < dist.get(i, math.inf):
                 dist[i] = d0
@@ -71,7 +75,7 @@ class MapGraph:
                 best = min(best, d + _d(c.center, q))
             for area in (c.area_a, c.area_b):
                 for j in self.by_area.get(area, ()):
-                    if j == i:
+                    if j == i or open_only and self.chokes[j].blocking:
                         continue
                     nd = d + _d(c.center, self.chokes[j].center) + self.cost[j]
                     if nd < dist.get(j, math.inf):

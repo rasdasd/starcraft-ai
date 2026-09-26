@@ -52,6 +52,15 @@ def test_mapgraph_multi_hop():
                  (g.bases[0].center[1] - g.bases[2].center[1]) ** 2) ** 0.5 - 1e-6
 
 
+def test_mapgraph_open_only_does_not_cross_a_mineral_wall():
+    g = make_game()
+    g.chokes.append(MapChoke(9, 2, 4, (60 * 32, 60 * 32), 128, True))
+    mg = MapGraph(g)
+    assert mg.connected(1, 3)
+    assert not mg.connected(1, 3, open_only=True)
+    assert mg.connected(1, 2, open_only=True)
+
+
 def test_meta_fills_section_features_and_detects_random_race():
     g = make_game(enemy_race=Race.Random)
     calls = []
