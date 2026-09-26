@@ -46,7 +46,7 @@ class BuildJob:
     retries: int = 0
     deaths: int = 0
     eta: int = 0                     # expected walk in frames at dispatch (0: unknown)
-    failed: str = ""                 # "blocked" | "dangerous" | "destroyed" once the job is over
+    failed: str = ""                 # "blocked" | "unreachable" | "dangerous" | "destroyed" once over
 
     def cost(self, game) -> tuple[int, int]:
         ut = game.unit_types
@@ -125,6 +125,10 @@ class JobRunner:
         travel = min(self.travel_timeout, 2 * job.eta + TRAVEL_SLACK) if job.eta else self.travel_timeout
         lost = frame - job.created > travel and not job.arrived
         if stuck or lost:
+            if lost:
+                log.warning("f%d %s builder #%d at (%d, %d), %d px from the site, order %d after %d frames (eta %d)",
+                            frame, g.type_name(job.unit_type), int(w["id"]), int(w["x"]) // 32, int(w["y"]) // 32,
+                            int(d2 ** 0.5), int(w["order"]), frame - job.created, job.eta)
             return self._retry(job, obs, placer, "at site" if stuck else "travel")
         return True
 
@@ -133,7 +137,10 @@ class JobRunner:
         job.retries += 1
         log.warning("f%d %s at %s timed out (%s, try %d)", frame, g.type_name(job.unit_type), job.tile, why, job.retries)
         if job.exact:
-            if job.retries >= (EXACT_RETRIES if why == "at site" else TRAVEL_RETRIES):
+            if why == "travel" and job.retries >= TRAVEL_RETRIES:
+                job.failed = "unreachable"
+                return False
+            if job.retries >= EXACT_RETRIES:
                 job.failed = "blocked"
                 return False
         else:

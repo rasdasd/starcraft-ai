@@ -26,6 +26,7 @@ log = logging.getLogger("adjutant.macro")
 RESOURCE_PX = 12 * 32
 HALL_PX = 4 * 32             # a depot this close to a base centre stands on its hall site
 ENEMY_NEAR_PX = 14 * 32      # enemy buildings this close make a base unavailable
+UNREACHABLE_FRAMES = 24 * 600  # a site builders could not walk to is skipped this long
 
 
 class BaseTracker:
@@ -97,6 +98,9 @@ class BaseTracker:
     # ------------------------------------------------------------------ expansion choice
     def mark_blocked(self, base_id: int, frame: int) -> None:
         self.avoid[int(base_id)] = frame + self.blocked_frames
+
+    def mark_unreachable(self, base_id: int, frame: int) -> None:
+        self.avoid[int(base_id)] = frame + UNREACHABLE_FRAMES
 
     def mark_dangerous(self, base_id: int, frame: int) -> None:
         self.avoid[int(base_id)] = max(self.avoid.get(int(base_id), 0), frame + self.danger_frames)

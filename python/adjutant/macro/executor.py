@@ -431,8 +431,9 @@ class Macro(Component):
                 self.placer.release(bb.game, job.unit_type, job.tile)
                 if job.failed == "dangerous":
                     self.placer.fail(job.tile, radius=3)
-            if job.base_id is not None and job.failed in ("blocked", "dangerous", "destroyed"):
-                (self.bases.mark_blocked if job.failed == "blocked" else self.bases.mark_dangerous)(job.base_id, bb.frame)
+            if job.base_id is not None and job.failed in ("blocked", "unreachable", "dangerous", "destroyed"):
+                mark = {"blocked": self.bases.mark_blocked, "unreachable": self.bases.mark_unreachable}
+                mark.get(job.failed, self.bases.mark_dangerous)(job.base_id, bb.frame)
                 bb.record("macro", "expand_failed", base=job.base_id, why=job.failed)
                 log.warning("f%d expansion to base %d %s", bb.frame, job.base_id, job.failed)
         self.jobs = keep
