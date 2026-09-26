@@ -170,12 +170,17 @@ class GreedyPlanner(Component):
                 else:
                     add("build", t, P_OPENING, "opening")
 
-        # 3. workers
+        # 3. workers (Zerg short on army: drones get at most half the larva, the army the rest)
+        need = self.min_army(bb)
+        short = w.army_supply < need
         if worker is not None:
             deficit = goal.workers - self.have(bb, worker)
             halls = self.done(bb, hall) if hall is not None else 0
-            if deficit > 0 and halls > 0:
-                add("train", worker, P_WORKER, "workers", count=min(deficit, halls))
+            n = min(deficit, halls)
+            if self.race == int(Race.Zerg) and short:
+                n = min(n, w.count(int(U.Zerg_Larva)) // 2)
+            if n > 0:
+                add("train", worker, P_WORKER, "workers", count=n)
 
         # types the opening still has to make (it may be waiting for supply): the goal does not
         # start them ahead of it
@@ -190,8 +195,6 @@ class GreedyPlanner(Component):
 
         # 3b. too little army for the game time / the enemy we know about: units before
         # expansions and tech (and before their money is reserved), also during the opening
-        need = self.min_army(bb)
-        short = w.army_supply < need
         if short:
             severe = w.army_supply < 0.5 * need and (need >= 8 or bb.belief.army_supply > 0)
             prio = P_WORKER + 1 if severe else P_ARMY_URGENT
