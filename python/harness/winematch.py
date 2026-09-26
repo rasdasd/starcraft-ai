@@ -132,9 +132,29 @@ def prepare_instance(inst: Path, bwapi_dll: Path, ai_files: list[Path], characte
         (shutil.copytree if f.is_dir() else shutil.copy2)(f, bd / "AI" / f.name)
 
 
-def lan_ini(*a, windowed: bool = False, **kw) -> str:
+def lan_ini(*a, window: Optional[tuple[int, int]] = None, **kw) -> str:
+    """bwapi.ini for a LAN client: full screen on its Xvfb, or a `window` (w, h) BWAPI scales the game to."""
     ini = bwapi_ini(*a, lan_mode="Local Area Network (UDP)", join="JOIN_FIRST", **kw)
-    return ini if windowed else ini.replace("windowed = ON", "windowed = OFF")
+    if window is None:
+        return ini.replace("windowed = ON", "windowed = OFF")
+    return (ini.replace("width = 640", f"width = {window[0]}").replace("height = 480", f"height = {window[1]}")
+            .replace("left = 0", "left = 40"))
+
+
+def raise_window(display: str, title: str = "Brood War", timeout: float = 90.0) -> None:
+    """Bring our client's window to the front once it exists (new WSLg windows can open behind others)."""
+    if shutil.which("xdotool") is None:
+        return
+    env = dict(os.environ, DISPLAY=display)
+    end = time.time() + timeout
+    while time.time() < end:
+        found = sh("xdotool", "search", "--name", f"^{title}$", env=env).stdout.split()
+        if found:
+            for wid in found:
+                sh("xdotool", "windowactivate", wid, env=env)
+                sh("xdotool", "windowraise", wid, env=env)
+            return
+        time.sleep(1.0)
 
 
 # ---------------------------------------------------------------------------- match
@@ -159,7 +179,7 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
           else "" for s in "ab"}
     (inst["a"] / "bwapi-data" / "bwapi.ini").write_text(
         lan_ini(f"bwapi-data/AI/{SHIM_DLL.name}", me.race or "Terran", names["a"], map_path, True, replay, 0,
-                tm["a"], windowed=args.watch), encoding="utf-8")
+                tm["a"], window=args.watch_size if args.watch else None), encoding="utf-8")
     (inst["b"] / "bwapi-data" / "bwapi.ini").write_text(
         lan_ini("" if client else f"bwapi-data/AI/{meta['file']}", meta.get("race", "Random"),
                 names["b"], map_path, False, "", 0, tm["b"]), encoding="utf-8")
@@ -196,6 +216,8 @@ def play(index: int, me: Player, opp_name: str, map_path: str, run_id: str, run_
         launch = ["wine", "injectory_x86.exe", "--launch", "StarCraft.exe", "--inject", "bwapi-data/BWAPI.dll"]
         spawn("a", launch, "wine_a.log",
               wine_env("a", BWBOT_PORT=str(args.port), BWBOT_HOST="127.0.0.1", BWBOT_NO_SPAWN="1"), inst["a"])
+        if "a" in shown:
+            threading.Thread(target=raise_window, args=(wine_env("a")["DISPLAY"],), daemon=True).start()
         benv = dict(os.environ, BWBOT_RESULT=str(gdir / "result_a.json"), BWBOT_LOG_DIR=str(gdir / "logs"),
                     BWBOT_GAME_ID=game_id, BWBOT_SIDE="a", PYTHONPATH=str(ROOT / "python"))
         if me.profile:
@@ -261,7 +283,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--watch", action="store_true",
                     help="show our client in a window on $DISPLAY (WSLg), every frame rendered; the opponent "
                          "stays headless. Pace it with --brain-args=--speed=42. Implies --parallel 1")
+    ap.add_argument("--watch-size", default="960x720",
+                    help="--watch window size, WxH (scaled in software: larger windows cap the frame rate)")
     args = ap.parse_args(argv)
+    try:
+        args.watch_size = tuple(int(v) for v in args.watch_size.lower().split("x", 1))
+    except ValueError:
+        ap.error("--watch-size wants WxH, e.g. 1280x960")
 
     if not args.opponent:
         ap.error("at least one --opponent")

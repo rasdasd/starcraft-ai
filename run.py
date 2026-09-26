@@ -41,7 +41,9 @@ PYTHON_DIR = ROOT / "python"
 BOTS_DIR = ROOT / "bots"
 WSL = "wsl.exe"
 WSL_DISTRO = os.environ.get("BWBOT_WSL_DISTRO", "Ubuntu")
-WATCH_SPEED = 42            # ms per frame: the game's own "Fastest", what human games are played at
+STOP_WATCH = ("pkill -f harness.winematch; pkill -f harness.brain; "
+              "for p in /root/sc/s*/prefix_[ab]; do [ -d $p ] && WINEPREFIX=$p wineserver -k; done; true")
+WATCH_SPEED = 20            # ms per frame for --opponent games: ~2x "Fastest" (42), the speed humans play at
 SKIP_DIRS = {".venv", "tests", "__pycache__", "build", "dist"}
 
 
@@ -57,6 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--enemy-race", choices=["Terran", "Protoss", "Zerg", "Random"], help="built-in AI race")
     p.add_argument("--opponent", help="play a published bot instead of the built-in AI, e.g. Dave_Churchill "
                                       f"(speed defaults to {WATCH_SPEED}; see --list)")
+    p.add_argument("--window", default="960x720",
+                   help="--opponent game window size, WxH. Wine scales in software: 640x480 keeps up with "
+                        "--speed 20 (~46 frames/s), 960x720 ~31, 1280x960 ~20")
     p.add_argument("--games", type=int, help="play exactly N games, then shut down StarCraft/shim/bot (default: forever)")
     p.add_argument("--no-bot", action="store_true", help="start only StarCraft + shim; run the bot yourself")
     p.add_argument("--no-game", action="store_true", help="start only shim + bot (StarCraft already running)")
@@ -206,7 +211,7 @@ def watch_cmd(a: argparse.Namespace) -> list[str]:
     minutes = max_frames * max(speed, 42) / 1000 / 60 + 10
     brain = [f"--speed={speed}"] + ([f"--frame-skip={a.frame_skip}"] if a.frame_skip is not None else [])
     cmd = [WSL, "-d", WSL_DISTRO, "-u", "root", "--cd", wsl_path(PYTHON_DIR), "--", wsl_python(),
-           "-m", "harness.winematch", "--watch", "--p1", spec,
+           "-m", "harness.winematch", "--watch", "--watch-size", a.window, "--p1", spec,
            "--opponent", a.opponent, "--games", str(a.games or 1), "--max-frames", str(max_frames),
            "--timeout-min", f"{minutes:.0f}", "--run-id", time.strftime("watch%Y%m%d-%H%M%S"),
            *(f"--brain-args={b}" for b in brain)]
@@ -290,6 +295,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.profile and not a.stop:
         a.profile = resolve_profile(a.bot, a.profile)
+    if a.stop and shutil.which(WSL):
+        subprocess.run([WSL, "-d", WSL_DISTRO, "-u", "root", "--", "bash", "-c", STOP_WATCH], capture_output=True)
     if a.opponent and not a.stop:
         if os.name != "nt" and not is_wsl():
             sys.exit("--opponent needs Windows or WSL (the visible game is Windows-only)")
