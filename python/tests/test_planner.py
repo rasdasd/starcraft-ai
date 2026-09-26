@@ -114,6 +114,25 @@ def test_expansion_is_an_expand_item_toward_the_natural():
     assert not any(it.kind == "build" and it.type_id == int(U.Terran_Command_Center) for it in bot.bb.plan.items)
 
 
+def test_saturated_bases_take_another_past_the_build_goal():
+    from types import SimpleNamespace as NS
+    from blackboard.sections import MacroState, OwnBase
+    m = MacroState(bases=[OwnBase(0, (0, 0), (0, 0), True, patches=9, refineries=1),
+                          OwnBase(1, (0, 0), (0, 0), True, patches=8)])
+    m.worker_target = 2 * 17 + 3
+    w = NS(workers=[0] * 36, minerals=300, under_attack=False)
+    bb, goal, hall = NS(macro=m, world=w), NS(bases=2, workers=60), int(U.Terran_Command_Center)
+    p = GreedyPlanner()
+    assert p.want_bases(bb, goal, hall) == 3
+    w.minerals = 100
+    assert p.want_bases(bb, goal, hall) == 2          # not floating
+    w.minerals, w.workers = 300, [0] * 20
+    assert p.want_bases(bb, goal, hall) == 2          # not saturated
+    w.workers = [0] * 36
+    m.expanding = 5
+    assert p.want_bases(bb, goal, hall) == 2          # one in flight already counts
+
+
 def test_army_trains_leave_money_for_tech():
     g = make_game()
     bot = _bot("mech_expand")

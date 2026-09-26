@@ -41,6 +41,7 @@ HALL = {int(Race.Terran): int(U.Terran_Command_Center), int(Race.Zerg): int(U.Ze
         int(Race.Protoss): int(U.Protoss_Nexus)}
 REFINERIES = (int(U.Terran_Refinery), int(U.Protoss_Assimilator), int(U.Zerg_Extractor))
 SHIM_QUERY_FRAMES = 24 * 2
+NO_SITE_RETRY_FRAMES = 24 * 2     # a full spiral search that found nothing is not repeated sooner
 
 
 def _building_something(u) -> bool:
@@ -94,6 +95,7 @@ class Macro(Component):
         self.runner = JobRunner(site_timeout=self.site_timeout)
         self.jobs: list[BuildJob] = []
         self.cancelled: set[int] = set()
+        self._no_site: dict[int, int] = {}
         self.shim: dict[int, tuple[int, Optional[tuple[int, int]]]] = {}   # type -> (query frame, answer)
         self._query = 0
         wt = int(U.Terran_SCV if self.race == int(Race.Terran) else U.Protoss_Probe
@@ -174,6 +176,8 @@ class Macro(Component):
             tile = self._site(bb, t, it.near)
             exact = tree.is_refinery(t)
             if tile is None:
+                if bb.game.type_flags(t) & F.RequiresPsi:
+                    return self._power(bb, it, budget)
                 return "no site"
         worker = self._pick(bb, tile, t)
         if worker is None:
@@ -196,6 +200,14 @@ class Macro(Component):
         log.info("f%d dispatch %s at %s%s (#%d)", bb.frame, bb.game.type_name(t), tile,
                  f" base {base_id}" if base_id is not None else "", job.worker_id)
         return ""
+
+    def _power(self, bb: Blackboard, it: PlanItem, budget: Budget) -> str:
+        """No powered room for a Protoss building: put down a pylon for it (one at a time)."""
+        pylon = int(U.Protoss_Pylon)
+        if any(j.unit_type == pylon for j in self.jobs) or bb.world.count(pylon) > bb.world.count_completed(pylon):
+            return "no site (powering)"
+        why = self._build(bb, PlanItem("build", pylon, it.priority, "power"), budget)
+        return f"no site (pylon: {why})" if why else "no site (pylon)"
 
     def _morph_building(self, bb: Blackboard, t: int, src: int, budget: Budget) -> str:
         if not self._reqs_done(bb, t):
@@ -343,12 +355,17 @@ class Macro(Component):
 
     def _site(self, bb: Blackboard, t: int, near: Optional[tuple[int, int]]) -> Optional[tuple[int, int]]:
         obs, g = bb.obs, bb.game
-        near = tuple(near) if near is not None else tuple(bb.world.main_tile)
-        free = [tuple(b.tile) for b in g.bases if not self.bases.owned(b.id)]
-        halls = [b.center for b in self.bases.bases]
-        tile = self.placer.find(obs, t, near, keep_free=free, halls=halls)
-        if tile is not None or self.tree.is_refinery(t):
-            return tile
+        anchors = [tuple(near)] if near is not None else \
+            [tuple(bb.world.main_tile)] + [tuple(b.tile) for b in self.bases.bases if b.completed]
+        if self.tree.is_refinery(t) or bb.frame - self._no_site.get(t, -10 ** 9) >= NO_SITE_RETRY_FRAMES:
+            free = [tuple(b.tile) for b in g.bases if not self.bases.owned(b.id)]
+            halls = [b.center for b in self.bases.bases]
+            for anchor in dict.fromkeys(anchors):
+                tile = self.placer.find(obs, t, anchor, keep_free=free, halls=halls)
+                if tile is not None or self.tree.is_refinery(t):
+                    return tile
+            self._no_site[t] = bb.frame
+        near = anchors[0]
         asked, answer = self.shim.get(t, (-10 ** 9, None))
         if answer is not None and answer not in self.placer.failed:
             self.shim.pop(t, None)

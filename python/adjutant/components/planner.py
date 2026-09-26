@@ -40,6 +40,9 @@ P_UPGRADE = Priority.PRODUCTION + 1
 P_ARMY = Priority.PRODUCTION
 P_ARMY_URGENT = Priority.PRODUCTION + 7
 
+SATURATION_SLACK = 2        # this close to the worker target counts as saturated
+FLOAT_MINERALS = 250        # ... and a saturated economy floating this much takes another base
+
 
 @register("GreedyPlanner")
 class GreedyPlanner(Component):
@@ -72,6 +75,19 @@ class GreedyPlanner(Component):
         if bb.macro.bases or hall is None:
             return bb.macro.base_count
         return self.have(bb, hall)
+
+    def want_bases(self, bb: Blackboard, goal, hall: Optional[int]) -> int:
+        """The goal's bases, or one more than we mine once those are saturated and minerals pile
+        up: a build's base count is a floor, not a cap."""
+        m, w = bb.macro, bb.world
+        now = self.bases(bb, hall)
+        if goal.bases > now or hall is None or m.expanding is not None or m.worker_target <= 0:
+            return goal.bases
+        target = min(m.worker_target, goal.workers) if goal.workers > 0 else m.worker_target
+        if len(w.workers) >= target - SATURATION_SLACK and w.minerals >= FLOAT_MINERALS \
+                and not w.under_attack:
+            return now + 1
+        return goal.bases
 
     def done(self, bb: Blackboard, t: int) -> int:
         return bb.world.count_completed(t)
@@ -207,10 +223,10 @@ class GreedyPlanner(Component):
                     add("build", t, P_CHAIN, "prereq")
                 notes.append(f"prereq {bb.game.type_name(t)}")
             # 5. expansions
-            bases_now = self.bases(bb, hall)
-            if hall is not None and goal.bases > bases_now and not cancel_hall and hall not in later:
+            bases_now, bases_want = self.bases(bb, hall), self.want_bases(bb, goal, hall)
+            if hall is not None and bases_want > bases_now and not cancel_hall and hall not in later:
                 add("expand", hall, P_EXPAND, "expand")
-                notes.append(f"expand {bases_now}->{goal.bases}")
+                notes.append(f"expand {bases_now}->{bases_want}")
 
             # 6. goal buildings
             geysers = max(1, bb.macro.geysers)

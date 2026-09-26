@@ -290,6 +290,32 @@ def test_workers_transfer_from_a_saturated_base_to_a_new_one():
     assert bot.bb.macro.worker_target == 2 * 8 + 2 * 7
 
 
+def test_protoss_building_without_power_puts_down_a_pylon():
+    from bwbot.observation import UnitTypeFlag
+    g, w = _world(race=Race.Protoss, minerals=400)
+    g.unit_types["flags"][int(U.Protoss_Gateway)] |= int(UnitTypeFlag.RequiresPsi)
+    bot = _bot(g, w, [("build", int(U.Protoss_Gateway), 90)])
+    sim, m = Sim(w), _comp(bot, "macro")
+    _tick(bot, w, sim, skip=1)
+    assert [j.unit_type for j in m.jobs] == [int(U.Protoss_Pylon)]
+    assert any("pylon" in b for b in bot.bb.macro.blocked)
+
+
+def test_full_main_builds_at_another_base():
+    g, w = _world(minerals=500)
+    nat = g.base(g.self_natural_id)
+    nx, ny = nat.tile
+    w.add(U.Terran_Command_Center, nx * 32 + 64, ny * 32 + 48)
+    bot = _bot(g, w, [("build", int(U.Terran_Supply_Depot), 90)])
+    sim, m = Sim(w), _comp(bot, "macro")
+    mx, my = bot.bb.world.main_tile
+    m.placer.failed.update((mx + dx, my + dy) for dx in range(-40, 41) for dy in range(-40, 41))
+    _tick(bot, w, sim, skip=1)
+    assert len(m.jobs) == 1
+    tx, ty = m.jobs[0].tile
+    assert abs(tx - nx) <= 32 and abs(ty - ny) <= 32
+
+
 # ---------------------------------------------------------------------------- whole bot
 def test_eggs_count_as_what_they_morph_into():
     from adjutant.components.perception import unit_counts
