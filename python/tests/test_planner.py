@@ -166,6 +166,40 @@ def test_floating_gas_buys_upgrades_for_the_army_and_their_building():
     assert run() == []
 
 
+def test_gas_sink_builds_the_tech_path_to_the_next_upgrade_level():
+    import numpy as np
+    from types import SimpleNamespace as NS
+    from adjutant.techtree import TechTree
+    from blackboard.sections import MacroState
+    from bwbot import UpgradeType as G
+    iw = int(G.Terran_Infantry_Weapons)
+    units = {int(t): 1 for t in (U.Terran_Command_Center, U.Terran_Barracks, U.Terran_Engineering_Bay,
+                                 U.Terran_Factory)}
+    w = NS(count=lambda t: units.get(t, 0), count_completed=lambda t: units.get(t, 0))
+    bb = NS(world=w, macro=MacroState())
+    me = NS(upgrade_level=np.zeros(64, int), is_upgrading=np.zeros(64, bool))
+    me.upgrade_level[iw] = 1
+    p = GreedyPlanner()
+    p.race = int(Race.Terran)
+    out = []
+    p._gas_sink(bb, TechTree(make_game()), NS(units={int(U.Terran_Marine): 20}),
+                lambda kind, t, *a, **k: out.append((kind, t)), me, set())
+    path = {("build", int(U.Terran_Starport)), ("build", int(U.Terran_Science_Facility))}
+    assert path & set(out)                                      # level 2 needs a Science Facility
+
+
+def test_workers_follow_bases_past_the_build_plan():
+    from types import SimpleNamespace as NS
+    from blackboard.sections import MacroState, OwnBase
+    m = MacroState(bases=[OwnBase(i, (0, 0), (0, 0), True, patches=8, refineries=1) for i in range(3)])
+    m.worker_target = 3 * (16 + 3)
+    bb, hall, p = NS(macro=m), int(U.Terran_Command_Center), GreedyPlanner()
+    assert p.want_workers(bb, NS(bases=1, workers=22), hall) == 57
+    assert p.want_workers(bb, NS(bases=3, workers=22), hall) == 22    # the build planned these bases
+    m.worker_target = 120
+    assert p.want_workers(bb, NS(bases=1, workers=22), hall) == 70
+
+
 def test_workers_are_made_one_base_ahead():
     from types import SimpleNamespace as NS
     from adjutant.strategies.base import workers_for

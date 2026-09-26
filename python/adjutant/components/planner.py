@@ -43,6 +43,7 @@ P_ARMY_URGENT = Priority.PRODUCTION + 7
 SATURATION_SLACK = 2        # this close to the worker target counts as saturated
 FLOAT_MINERALS = 250        # ... and a saturated economy floating this much takes another base
 OVERSATURATED = 6           # ... as does one with this many workers past its mining slots
+MAX_WORKERS = 70            # workers for bases beyond the build's plan stop here
 LARVA_FLOAT = 600           # Zerg banking this much with no larva adds a hatchery
 GAS_FLOAT = 400             # this much gas, and more than minerals, is floating gas
 
@@ -97,12 +98,20 @@ class GreedyPlanner(Component):
         now = self.bases(bb, hall)
         if goal.bases > now or hall is None or m.expanding is not None or m.worker_target <= 0:
             return goal.bases
-        target = min(m.worker_target, goal.workers) if goal.workers > 0 else m.worker_target
+        workers = self.want_workers(bb, goal, hall)
+        target = min(m.worker_target, workers) if workers > 0 else m.worker_target
         saturated = len(w.workers) >= target - SATURATION_SLACK
         floating = w.minerals >= FLOAT_MINERALS or len(w.workers) >= m.worker_target + OVERSATURATED
         if saturated and floating and not w.under_attack:
             return now + 1
         return goal.bases
+
+    def want_workers(self, bb: Blackboard, goal, hall: Optional[int]) -> int:
+        """The goal's workers; once we hold more bases than the build plans for (economic
+        expansions), enough to mine all of them."""
+        if hall is None or self.bases(bb, hall) <= goal.bases:
+            return goal.workers
+        return max(goal.workers, min(MAX_WORKERS, bb.macro.worker_target))
 
     @staticmethod
     def _gas_float(bb: Blackboard) -> bool:
@@ -127,8 +136,11 @@ class GreedyPlanner(Component):
                 reqs = tree.upgrade_requires(u, cur + 1)
                 if self._reqs_done(bb, tree, reqs):
                     add("upgrade", u, P_UPGRADE, "gas", cost=tree.upgrade_cost(u, cur + 1))
-                elif reqs and not self.have(bb, reqs[0]) and self._reqs_done(bb, tree, tree.unit_requires(reqs[0])):
-                    add("build", reqs[0], P_TECH, "gas sink")
+                else:
+                    chain = tree.missing(reqs, lambda t: self.have(bb, t))
+                    step = next((t for t in chain if self._reqs_done(bb, tree, tree.unit_requires(t))), None)
+                    if step is not None:
+                        add("build", step, P_TECH, "gas sink")
 
     def _larva_starved(self, bb: Blackboard, hall: int) -> bool:
         """Zerg floating minerals with no larva and no hatchery on the way: another hatchery pays."""
@@ -214,7 +226,7 @@ class GreedyPlanner(Component):
         need = self.min_army(bb)
         short = w.army_supply < need
         if worker is not None:
-            deficit = goal.workers - self.have(bb, worker)
+            deficit = self.want_workers(bb, goal, hall) - self.have(bb, worker)
             halls = self.done(bb, hall) if hall is not None else 0
             n = min(deficit, halls)
             if self.race == int(Race.Zerg) and short:

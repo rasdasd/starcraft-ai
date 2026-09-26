@@ -111,7 +111,7 @@ class SearchPlanner(GreedyPlanner):
         if short:
             for t, n in army.items():
                 want(t, n)
-        want(worker, min(goal.workers, s.started.get(worker, 0) + self.worker_chunk))
+        want(worker, min(self.want_workers(bb, goal, hall), s.started.get(worker, 0) + self.worker_chunk))
         if self.want_bases(bb, goal, hall) > self.bases(bb, hall):
             want(hall, s.started.get(hall, 0) + 1)
         geysers = max(1, bb.macro.geysers)

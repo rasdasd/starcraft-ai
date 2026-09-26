@@ -75,6 +75,7 @@ class Tactics(Component):
         self.retreat_until = -1
         self.repairing: set[int] = set()
         self.nat_exit = self._natural_exit(bb.game)
+        self._exits: dict[tuple, tuple[int, int]] = {}
         self.table = E.TypeTable(bb.game)
         self.types: dict[int, tuple[int, bool]] = {}      # id -> (type, ours)
         self.lost = [0.0, 0.0]                           # value lost: ours, theirs
@@ -236,11 +237,15 @@ class Tactics(Component):
         return Squad("repair", ids, SquadOrder("retreat", home[0], home[1]), self.priority)
 
     def _home_threat(self, bb: Blackboard) -> Optional[tuple[tuple[int, int], list]]:
-        """(center, enemy rows) of the biggest enemy group near one of our bases, if any."""
-        for t in bb.threats.active:
-            if t.severity >= 0.5:
-                return (t.x, t.y), [u for u in bb.world.enemies if int(u["id"]) in set(t.units)]
+        """(center, enemy rows) of the biggest enemy group near one of our bases, if any. Threats
+        without enemy units in sight (e.g. `cloak_tech`: tech seen, for detection) place no army."""
         enemies = bb.world.enemies
+        for t in bb.threats.active:
+            if t.severity >= 0.5 and t.units:
+                ids = set(t.units)
+                rows = [u for u in enemies if int(u["id"]) in ids]
+                if rows:
+                    return (t.x, t.y), rows
         if len(enemies) == 0:
             return None
         ut = bb.game.unit_types
@@ -265,7 +270,7 @@ class Tactics(Component):
     def _defense_squad(self, bb: Blackboard, units, taken: set[int], threat) -> Optional[Squad]:
         (tx, ty), enemies = threat
         free = [u for u in units if int(u["id"]) not in taken]
-        if not free:
+        if not free or not enemies:
             return None
         free.sort(key=lambda u: _d2((int(u["x"]), int(u["y"])), (tx, ty)))
         ev = bb.services.get("engage")
@@ -360,6 +365,11 @@ class Tactics(Component):
         return any(_d2(d, c) <= (6 * 32) ** 2 for d in bb.world.depots)
 
     def _hold_point(self, bb: Blackboard) -> tuple[int, int]:
+        """The exit of our base nearest the enemy (the natural's by default), else just inside the
+        main ramp: the army waits in front of what it protects, not in the main."""
+        front = self._front_exit(bb)
+        if front is not None:
+            return front
         if self.nat_exit is not None and self._owns_natural(bb):
             return self.nat_exit
         if bb.world.main_choke is not None:
@@ -370,6 +380,49 @@ class Tactics(Component):
             k = min(0.5, self.choke_back_px / d) if d > 0 else 0.0
             return int(cx + (hx - cx) * k), int(cy + (hy - cy) * k)
         return self._home(bb)
+
+    def _front_exit(self, bb: Blackboard) -> Optional[tuple[int, int]]:
+        """Exit choke of the owned base (other than the main and natural) closest to the enemy, when
+        it is closer to them than the natural."""
+        g = bb.game
+        enemy = self._enemy_ref(bb)
+        owned = []
+        for d in bb.world.depots:
+            b = min(g.bases, key=lambda b: _d2(b.center, d), default=None)
+            if b is not None and _d2(b.center, d) <= (6 * 32) ** 2:
+                owned.append(b)
+        others = [b for b in owned if b.id not in (g.self_main_id, g.self_natural_id)]
+        if not others:
+            return None
+        front = min(others, key=lambda b: _d2(b.center, enemy))
+        nat = g.base(g.self_natural_id) if g.self_natural_id >= 0 else None
+        if nat is not None and self._owns_natural(bb) and _d2(nat.center, enemy) <= _d2(front.center, enemy):
+            return None
+        return self._base_exit(g, front, enemy)
+
+    def _enemy_ref(self, bb: Blackboard) -> tuple[int, int]:
+        g, es = bb.game, bb.belief.enemy_start
+        if es is not None:
+            return es[0] * 32 + 64, es[1] * 32 + 48
+        others = [s for s in g.start_bases if tuple(s.tile) != tuple(g.self_player.start_location)]
+        if others:
+            return (int(sum(s.tile[0] for s in others) / len(others) * 32),
+                    int(sum(s.tile[1] for s in others) / len(others) * 32))
+        return g.map_width * 16, g.map_height * 16
+
+    def _base_exit(self, game, base, toward) -> tuple[int, int]:
+        """The open choke of `base`'s area nearest `toward`, or a point 6 tiles from the base toward it."""
+        cache = self._exits
+        key = (base.id, toward)
+        if key not in cache:
+            chokes = [c for c in game.chokes if base.area_id in (c.area_a, c.area_b) and not c.blocking]
+            if chokes:
+                cache[key] = tuple(min(chokes, key=lambda c: _d2(c.center, toward)).center)
+            else:
+                bx, by = base.center
+                d = math.hypot(toward[0] - bx, toward[1] - by) or 1.0
+                cache[key] = (int(bx + (toward[0] - bx) * 6 * 32 / d), int(by + (toward[1] - by) * 6 * 32 / d))
+        return cache[key]
 
     @staticmethod
     def _natural_exit(game) -> Optional[tuple[int, int]]:

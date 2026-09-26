@@ -118,6 +118,35 @@ def test_home_threat_gets_a_defense_squad_sized_by_the_estimate():
     assert set(far) <= sq["main"].units
 
 
+def test_tech_warning_without_enemies_does_not_pull_the_army_home():
+    from blackboard.sections import Threat
+    from adjutant.components.tactics import Tactics
+    bot, w, g = _setup("hold")
+    hx, hy = _home(g)
+    ids = [w.add(U.Terran_Marine, hx + 900 + i * 20, hy + 900) for i in range(4)]
+    Recording(w).run(bot, 16)
+    tac = next(c for c in bot.sched.components if isinstance(c, Tactics))
+    bot.bb.threats.active = [Threat("cloak_tech", hx, hy, 0.5, bot.bb.frame, [])]
+    assert tac._home_threat(bot.bb) is None
+    assert tac._defense_squad(bot.bb, list(bot.bb.world.army), set(), ((hx, hy), [])) is None
+    assert set(ids) <= _squads(bot)["main"].units
+
+
+def test_army_holds_in_front_of_the_base_nearest_the_enemy():
+    from adjutant.components.tactics import Tactics
+    bot, w, g = _setup("hold")
+    mid = next(b for b in g.bases if b.tile == (60, 60))
+    w.add(U.Terran_Command_Center, *mid.center)
+    hx, hy = _home(g)
+    w.add(U.Terran_Marine, hx + 100, hy + 100)
+    Recording(w).run(bot, 32)
+    main = _squads(bot)["main"]
+    ex, ey = g.players[1].start_location
+    d_mid = ((main.order.x - mid.center[0]) ** 2 + (main.order.y - mid.center[1]) ** 2) ** 0.5
+    assert main.order.kind == "hold" and d_mid <= 7 * 32
+    assert (main.order.x - mid.center[0]) * (ex * 32 - mid.center[0]) > 0     # on the enemy's side
+
+
 def test_damaged_mech_walks_home_for_repair():
     bot, w, g = _setup("hold")
     hx, hy = _home(g)
