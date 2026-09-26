@@ -182,15 +182,16 @@ class Macro(Component):
         worker = self._pick(bb, tile, t)
         if worker is None:
             return "no builder"
+        eta = self._eta(bb, worker, tile, t, base_id)
         if not budget.can(m, g):
-            eta = self._eta(bb, worker, tile, t, base_id)
             per = 1.0 / (24 * 60)
             soon = (budget.m + bb.world.income_minerals * per * eta >= m
                     and budget.g + bb.world.income_gas * per * eta >= g)
             if not (self.early_dispatch and soon):
                 budget.hold(m, g)
                 return ""
-        job = BuildJob(t, tile, exact=exact, base_id=base_id, worker_id=int(worker["id"]), created=bb.frame)
+        job = BuildJob(t, tile, exact=exact, base_id=base_id, worker_id=int(worker["id"]), created=bb.frame,
+                       eta=int(eta) if math.isfinite(eta) else 0)
         self.jobs.append(job)
         if not exact:
             self.placer.reserve(bb.game, t, tile)

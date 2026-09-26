@@ -26,6 +26,8 @@ REISSUE_FRAMES = 8
 WALK_TILES = 6             # Move (not Build) until this close to the site centre
 ARRIVE_PX = 5 * 32
 EXACT_RETRIES = 3
+TRAVEL_RETRIES = 2         # an exact site not reached twice is taken as unreachable
+TRAVEL_SLACK = 24 * 20     # travel timeout: twice the expected walk plus this (capped by travel_timeout)
 BUILDER_DEATHS = 2
 
 
@@ -43,6 +45,7 @@ class BuildJob:
     last_issue: int = -10_000
     retries: int = 0
     deaths: int = 0
+    eta: int = 0                     # expected walk in frames at dispatch (0: unknown)
     failed: str = ""                 # "blocked" | "dangerous" | "destroyed" once the job is over
 
     def cost(self, game) -> tuple[int, int]:
@@ -119,7 +122,8 @@ class JobRunner:
                 act.build(w, job.unit_type, job.tile[0], job.tile[1])
             job.last_issue = frame
         stuck = job.arrived and minerals >= m and gas >= gg and frame - job.arrived > self.site_timeout
-        lost = frame - job.created > self.travel_timeout and not job.arrived
+        travel = min(self.travel_timeout, 2 * job.eta + TRAVEL_SLACK) if job.eta else self.travel_timeout
+        lost = frame - job.created > travel and not job.arrived
         if stuck or lost:
             return self._retry(job, obs, placer, "at site" if stuck else "travel")
         return True
@@ -129,7 +133,7 @@ class JobRunner:
         job.retries += 1
         log.warning("f%d %s at %s timed out (%s, try %d)", frame, g.type_name(job.unit_type), job.tile, why, job.retries)
         if job.exact:
-            if job.retries >= EXACT_RETRIES:
+            if job.retries >= (EXACT_RETRIES if why == "at site" else TRAVEL_RETRIES):
                 job.failed = "blocked"
                 return False
         else:

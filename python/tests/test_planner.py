@@ -2,7 +2,7 @@ import os
 
 from adjutant.components.planner import GreedyPlanner
 from blackboard.recorder import Recorder
-from bwbot import TechType as T, UnitType as U
+from bwbot import Race, TechType as T, UnitType as U
 
 from fakes import FakeWorld, Sim, make_game
 
@@ -131,6 +131,25 @@ def test_saturated_bases_take_another_past_the_build_goal():
     w.workers = [0] * 36
     m.expanding = 5
     assert p.want_bases(bb, goal, hall) == 2          # one in flight already counts
+
+
+def test_zerg_floating_without_larva_adds_a_hatchery():
+    from types import SimpleNamespace as NS
+    from blackboard.sections import MacroState
+    hatch, larva = int(U.Zerg_Hatchery), int(U.Zerg_Larva)
+    units = {hatch: 2, larva: 0}
+    w = NS(minerals=900, count=lambda t: units.get(t, 0), count_completed=lambda t: units.get(t, 0))
+    bb = NS(world=w, macro=MacroState())
+    p = GreedyPlanner()
+    p.race = int(Race.Zerg)
+    assert p._larva_starved(bb, hatch)
+    units[larva] = 2
+    assert not p._larva_starved(bb, hatch)
+    units[larva], bb.macro.pending = 0, {hatch: 1}
+    assert not p._larva_starved(bb, hatch)            # one already on the way
+    p.race = int(Race.Terran)
+    bb.macro.pending = {}
+    assert not p._larva_starved(bb, hatch)
 
 
 def test_army_trains_leave_money_for_tech():

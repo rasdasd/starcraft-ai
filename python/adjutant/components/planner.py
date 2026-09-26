@@ -42,6 +42,7 @@ P_ARMY_URGENT = Priority.PRODUCTION + 7
 
 SATURATION_SLACK = 2        # this close to the worker target counts as saturated
 FLOAT_MINERALS = 250        # ... and a saturated economy floating this much takes another base
+LARVA_FLOAT = 600           # Zerg banking this much with no larva adds a hatchery
 
 
 @register("GreedyPlanner")
@@ -88,6 +89,12 @@ class GreedyPlanner(Component):
                 and not w.under_attack:
             return now + 1
         return goal.bases
+
+    def _larva_starved(self, bb: Blackboard, hall: int) -> bool:
+        """Zerg floating minerals with no larva and no hatchery on the way: another hatchery pays."""
+        w = bb.world
+        return (self.race == int(Race.Zerg) and w.minerals >= LARVA_FLOAT and w.count(int(U.Zerg_Larva)) == 0
+                and w.count(hall) == self.done(bb, hall) and not bb.macro.pending_count(hall))
 
     def done(self, bb: Blackboard, t: int) -> int:
         return bb.world.count_completed(t)
@@ -227,6 +234,12 @@ class GreedyPlanner(Component):
             if hall is not None and bases_want > bases_now and not cancel_hall and hall not in later:
                 add("expand", hall, P_EXPAND, "expand")
                 notes.append(f"expand {bases_now}->{bases_want}")
+            elif hall is not None and not cancel_hall and self._larva_starved(bb, hall):
+                if bb.macro.next_base is not None:
+                    add("expand", hall, P_EXPAND, "larva")
+                else:
+                    add("build", hall, P_EXPAND, "macro hatch")
+                notes.append("larva")
 
             # 6. goal buildings
             geysers = max(1, bb.macro.geysers)
