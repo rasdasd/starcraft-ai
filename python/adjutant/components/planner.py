@@ -142,7 +142,8 @@ class GreedyPlanner(Component):
                 if not tree.is_building(t):
                     add("train", t, P_OPENING, "opening", cost=tree.cost(t))
                 elif t == hall and self.done(bb, hall) > 0:
-                    add("expand", t, P_OPENING, "opening expand")
+                    if not cancel_hall:
+                        add("expand", t, P_OPENING, "opening expand")
                 else:
                     add("build", t, P_OPENING, "opening")
 

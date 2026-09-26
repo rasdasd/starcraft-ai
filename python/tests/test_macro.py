@@ -22,12 +22,13 @@ class FixedPlan(Component):
     reads = ("world",)
     writes = ("plan",)
 
-    def __init__(self, items=()) -> None:
+    def __init__(self, items=(), cancel=()) -> None:
         self.items = list(items)
+        self.cancel = list(cancel)
 
     def tick(self, bb) -> None:
         bb.plan.items = [PlanItem(*it) for it in sorted(self.items, key=lambda it: -it[2])]
-        bb.plan.cancel = []
+        bb.plan.cancel = list(self.cancel)
 
 
 OFF = ("engagement", "strategy", "scouting", "repair", "tactics", "micro", "crisis", "worker_defense", "report")
@@ -218,6 +219,36 @@ def test_blocked_expansion_site_is_given_up_and_avoided():
     assert g.self_natural_id in m.bases.avoid
     assert not m.jobs
     assert bot.bb.macro.next_base != g.self_natural_id
+
+
+def test_cancelled_expansion_is_not_redispatched_and_bases_stay_usable():
+    g, w = _world(minerals=1000)
+    cc = int(U.Terran_Command_Center)
+    bot = _bot(g, w, [("expand", cc, 90)])
+    sim, m, plan = Sim(w), _comp(bot, "macro"), _comp(bot, "production")
+    _tick(bot, w, sim, skip=1)
+    assert [j.base_id for j in m.jobs] == [g.self_natural_id]
+    plan.cancel = [cc]                                # a crisis at home: drop the unplaced hall
+    for _ in range(10):
+        _tick(bot, w, sim)
+    assert not m.jobs and not m.bases.avoid
+    plan.cancel = []
+    _tick(bot, w, sim, skip=1)
+    assert [j.base_id for j in m.jobs] == [g.self_natural_id]
+
+
+def test_builder_taken_by_a_worker_pull_is_replaced():
+    from blackboard import Priority
+    g, w = _world(minerals=0)
+    bot = _bot(g, w, [("build", int(U.Terran_Barracks), 90)], early_dispatch=False)
+    sim, m = Sim(w), _comp(bot, "macro")
+    w.minerals = 150
+    _tick(bot, w, sim, skip=1)
+    job = m.jobs[0]
+    first = job.worker_id
+    bot.bb.leases.lease(first, "crisis", int(Priority.CRISIS), "pull", w.frame)
+    _tick(bot, w, sim, skip=1)
+    assert job.worker_id not in (None, first) and job.deaths == 0
 
 
 # ---------------------------------------------------------------------------- workers

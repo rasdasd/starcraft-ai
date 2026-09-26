@@ -93,6 +93,7 @@ class Macro(Component):
         self.placer = Placer()
         self.runner = JobRunner(site_timeout=self.site_timeout)
         self.jobs: list[BuildJob] = []
+        self.cancelled: set[int] = set()
         self.shim: dict[int, tuple[int, Optional[tuple[int, int]]]] = {}   # type -> (query frame, answer)
         self._query = 0
         wt = int(U.Terran_SCV if self.race == int(Race.Terran) else U.Protoss_Probe
@@ -105,8 +106,9 @@ class Macro(Component):
         self.bases.update(obs, frame)
         self._shim_answers(obs)
         self._step_jobs(bb)
-        for t in bb.plan.cancel:
-            self.cancel(bb, int(t))
+        self.cancelled = {int(t) for t in bb.plan.cancel}
+        for t in self.cancelled:
+            self.cancel(bb, t)
 
         reserved = self._reserved()
         m, g = self._reserved_elsewhere(bb)
@@ -131,6 +133,8 @@ class Macro(Component):
         """Start / hold for / skip one item. Returns why it was skipped ('' if started or held)."""
         kind, t = it.kind, int(it.type_id)
         if kind in ("build", "expand"):
+            if t in self.cancelled:
+                return "cancelled"
             return self._build(bb, it, budget)
         if kind == "train":
             return self._train(bb, t, max(1, it.count), budget)
@@ -398,6 +402,8 @@ class Macro(Component):
         claimed = {j.building_id for j in self.jobs if j.building_id is not None}
         keep = []
         for job in self.jobs:
+            if job.worker_id is not None and bb.leases.owner(job.worker_id) not in (None, self.slot):
+                job.worker_id = None               # taken by a higher priority (a worker pull): replace it
             if self.runner.step(job, obs, bb.act, w.minerals, w.gas, claim, self.placer, claimed):
                 keep.append(job)
                 if job.building_id is not None:
@@ -405,6 +411,8 @@ class Macro(Component):
                 continue
             if not job.exact:
                 self.placer.release(bb.game, job.unit_type, job.tile)
+                if job.failed == "dangerous":
+                    self.placer.fail(job.tile, radius=3)
             if job.base_id is not None and job.failed in ("blocked", "dangerous", "destroyed"):
                 (self.bases.mark_blocked if job.failed == "blocked" else self.bases.mark_dangerous)(job.base_id, bb.frame)
                 bb.record("macro", "expand_failed", base=job.base_id, why=job.failed)
@@ -421,8 +429,6 @@ class Macro(Component):
                     self.placer.release(bb.game, j.unit_type, j.tile)
                 if j.worker_id is not None:
                     bb.leases.release(j.worker_id, self.slot)
-                if j.base_id is not None:
-                    self.bases.mark_dangerous(j.base_id, bb.frame)
             else:
                 keep.append(j)
         self.jobs = keep

@@ -20,7 +20,7 @@ def unit_counts(obs, game) -> tuple[np.ndarray, np.ndarray]:
     counts = me.all_unit_count if me.all_unit_count.size >= n else np.zeros(n, dtype=np.int32)
     completed = me.completed_unit_count if me.completed_unit_count.size >= n else np.zeros(n, dtype=np.int32)
     own = obs.my_units
-    eggs = own[np.isin(own["type"], EGGS) & (own["build_type"] >= 0) & (own["build_type"] < n)]
+    eggs = own[np.isin(own["type"], EGGS) & (own["build_type"] >= 0) & (own["build_type"] < min(n, int(U.None_)))]
     if len(eggs):
         counts = counts.copy()
         for bt in eggs["build_type"]:
