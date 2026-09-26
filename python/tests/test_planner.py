@@ -128,9 +128,42 @@ def test_saturated_bases_take_another_past_the_build_goal():
     assert p.want_bases(bb, goal, hall) == 2          # not floating
     w.minerals, w.workers = 300, [0] * 20
     assert p.want_bases(bb, goal, hall) == 2          # not saturated
+    w.workers = [0] * 44
+    w.minerals = 100
+    assert p.want_bases(bb, goal, hall) == 3          # heavily oversaturated: expand without a float
     w.workers = [0] * 36
     m.expanding = 5
     assert p.want_bases(bb, goal, hall) == 2          # one in flight already counts
+
+
+def test_floating_gas_buys_upgrades_for_the_army_and_their_building():
+    import numpy as np
+    from types import SimpleNamespace as NS
+    from adjutant.techtree import TechTree
+    from blackboard.sections import MacroState
+    from bwbot import UpgradeType as G
+    forge, gw = int(U.Protoss_Forge), int(G.Protoss_Ground_Weapons)
+    units = {int(U.Protoss_Nexus): 1}
+    w = NS(count=lambda t: units.get(t, 0), count_completed=lambda t: units.get(t, 0))
+    bb = NS(world=w, macro=MacroState())
+    me = NS(upgrade_level=np.zeros(64, int), is_upgrading=np.zeros(64, bool))
+    goal = NS(units={int(U.Protoss_Dragoon): 20})
+    p = GreedyPlanner()
+    p.race = int(Race.Protoss)
+    tree = TechTree(make_game())
+
+    def run():
+        out, emitted = [], set()
+        p._gas_sink(bb, tree, goal, lambda kind, t, *a, **k: out.append((kind, t)), me, emitted)
+        return out
+
+    assert ("build", forge) in run()
+    units[forge] = 1
+    assert ("upgrade", gw) in run()
+    me.is_upgrading[gw] = True
+    assert ("upgrade", gw) not in run()
+    goal.units = {int(U.Protoss_Corsair): 5}
+    assert run() == []
 
 
 def test_workers_are_made_one_base_ahead():

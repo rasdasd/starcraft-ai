@@ -16,7 +16,7 @@ from typing import Optional
 from blackboard import Blackboard, Component, Phase, Priority
 from blackboard.profile import register
 from blackboard.sections import PlanItem
-from bwbot import Race, UnitType as U
+from bwbot import Race, UnitType as U, UpgradeType as G
 from bwbot.observation import UnitTypeFlag as F
 
 from ..techtree import TechTree
@@ -42,8 +42,20 @@ P_ARMY_URGENT = Priority.PRODUCTION + 7
 
 SATURATION_SLACK = 2        # this close to the worker target counts as saturated
 FLOAT_MINERALS = 250        # ... and a saturated economy floating this much takes another base
+OVERSATURATED = 6           # ... as does one with this many workers past its mining slots
 LARVA_FLOAT = 600           # Zerg banking this much with no larva adds a hatchery
 GAS_FLOAT = 400             # this much gas, and more than minerals, is floating gas
+
+# floating gas buys the next level of these for an army that has any of the units
+GAS_SINKS = (
+    ((U.Terran_Vulture, U.Terran_Siege_Tank_Tank_Mode, U.Terran_Goliath),
+     (G.Terran_Vehicle_Weapons, G.Terran_Vehicle_Plating)),
+    ((U.Terran_Marine, U.Terran_Firebat, U.Terran_Medic), (G.Terran_Infantry_Weapons, G.Terran_Infantry_Armor)),
+    ((U.Protoss_Zealot, U.Protoss_Dragoon, U.Protoss_Archon, U.Protoss_Dark_Templar),
+     (G.Protoss_Ground_Weapons, G.Protoss_Ground_Armor, G.Protoss_Plasma_Shields)),
+    ((U.Zerg_Zergling, U.Zerg_Ultralisk), (G.Zerg_Melee_Attacks, G.Zerg_Carapace)),
+    ((U.Zerg_Hydralisk, U.Zerg_Lurker), (G.Zerg_Missile_Attacks, G.Zerg_Carapace)),
+)
 
 
 @register("GreedyPlanner")
@@ -86,8 +98,9 @@ class GreedyPlanner(Component):
         if goal.bases > now or hall is None or m.expanding is not None or m.worker_target <= 0:
             return goal.bases
         target = min(m.worker_target, goal.workers) if goal.workers > 0 else m.worker_target
-        if len(w.workers) >= target - SATURATION_SLACK and w.minerals >= FLOAT_MINERALS \
-                and not w.under_attack:
+        saturated = len(w.workers) >= target - SATURATION_SLACK
+        floating = w.minerals >= FLOAT_MINERALS or len(w.workers) >= m.worker_target + OVERSATURATED
+        if saturated and floating and not w.under_attack:
             return now + 1
         return goal.bases
 
@@ -95,6 +108,27 @@ class GreedyPlanner(Component):
     def _gas_float(bb: Blackboard) -> bool:
         """Gas piling up beyond minerals: spend it (gas-heavy units, tech) rather than stop mining it."""
         return bb.world.gas >= GAS_FLOAT and bb.world.gas >= bb.world.minerals
+
+    def _gas_sink(self, bb: Blackboard, tree: TechTree, goal, add, me, emitted) -> None:
+        """Weapon / armor levels past the goal's for the unit types the goal's army is made of, and
+        the building that researches them when we have none."""
+        army = {int(t) for t, n in goal.units.items() if n > 0}
+        for units, upgrades in GAS_SINKS:
+            if not army & {int(t) for t in units}:
+                continue
+            for u in (int(x) for x in upgrades):
+                info = tree.upgrades.get(u)
+                if info is None or ("upgrade", u) in emitted:
+                    continue
+                cur = int(me.upgrade_level[u]) if me.upgrade_level.size > u else 0
+                busy = bool(me.is_upgrading[u]) if me.is_upgrading.size > u else False
+                if busy or cur >= int(info["max_repeats"]):
+                    continue
+                reqs = tree.upgrade_requires(u, cur + 1)
+                if self._reqs_done(bb, tree, reqs):
+                    add("upgrade", u, P_UPGRADE, "gas", cost=tree.upgrade_cost(u, cur + 1))
+                elif reqs and not self.have(bb, reqs[0]) and self._reqs_done(bb, tree, tree.unit_requires(reqs[0])):
+                    add("build", reqs[0], P_TECH, "gas sink")
 
     def _larva_starved(self, bb: Blackboard, hall: int) -> bool:
         """Zerg floating minerals with no larva and no hatchery on the way: another hatchery pays."""
@@ -283,6 +317,9 @@ class GreedyPlanner(Component):
                     continue
                 if self._reqs_done(bb, tree, tree.tech_requires(tech)):
                     add("research", tech, P_UPGRADE, "goal", cost=tree.tech_cost(tech))
+            if gas_float and me is not None:
+                self._gas_sink(bb, tree, goal, add, me, emitted)
+                notes.append("gas float")
 
         # 9. army, then 10. filler units from producers the goal leaves idle while money piles up
         left, used = self._army(bb, tree, goal, add, reserve, worker, held)
