@@ -51,7 +51,7 @@ def enemy_race(bb: Blackboard) -> int:
 
 class TemplateStrategy(Component):
     phase = Phase.DECIDE
-    reads = ("world", "meta", "belief", "threats")
+    reads = ("world", "meta", "belief", "threats", "macro")
     writes = ("strategy",)
     order = 10
     min_switch_frames = 24 * 30        # hysteresis: at most one switch per 30 s

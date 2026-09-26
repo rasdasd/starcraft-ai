@@ -133,6 +133,22 @@ def test_saturated_bases_take_another_past_the_build_goal():
     assert p.want_bases(bb, goal, hall) == 2          # one in flight already counts
 
 
+def test_workers_are_made_one_base_ahead():
+    from types import SimpleNamespace as NS
+    from adjutant.strategies.base import workers_for
+    from blackboard.sections import MacroState, OwnBase
+    ref = int(U.Terran_Refinery)
+    w = NS(count=lambda t: 1 if t == ref else 0, count_completed=lambda t: 0)
+    main = OwnBase(0, (0, 0), (0, 0), True, patches=8)
+    bb = NS(macro=MacroState(bases=[main]), game=NS(self_race=int(Race.Terran)), world=w)
+    assert workers_for(bb) == 16 * 2 + 3                      # the main and the next base
+    bb.macro.bases = [main, OwnBase(1, (0, 0), (0, 0), False, patches=8)]
+    assert workers_for(bb) == 16 * 2 + 3                      # the next base is under construction
+    bb.macro.bases[1].completed = True
+    assert workers_for(bb) == 16 * 3 + 3
+    assert workers_for(bb, cap=40) == 40
+
+
 def test_zerg_floating_without_larva_adds_a_hatchery():
     from types import SimpleNamespace as NS
     from blackboard.sections import MacroState

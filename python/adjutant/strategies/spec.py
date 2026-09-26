@@ -161,7 +161,7 @@ def board_env(bb: Blackboard, race: str) -> dict:
         "enemy_bases": sum(1 for eb in b.bases if eb.alive), "enemy_cloak": bool(b.cloak),
         "enemy_opening": str(b.opening), "enemy_proxy": bool(b.proxy), "rush": rush,
         "count": lambda n: w.count(own(n)), "done": lambda n: w.count_completed(own(n)), "enemy": enemy,
-        "workers_for": lambda per_base=16, cap=60, per_gas=3: workers_for(bb, per_base, cap, per_gas),
+        "workers_for": lambda per_base=16, cap=60, per_gas=3, ahead=1: workers_for(bb, per_base, cap, per_gas, ahead),
         "min": min, "max": max, "abs": abs, "round": round, "int": int, "float": float,
     }
 

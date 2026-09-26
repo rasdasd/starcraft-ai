@@ -43,6 +43,7 @@ P_ARMY_URGENT = Priority.PRODUCTION + 7
 SATURATION_SLACK = 2        # this close to the worker target counts as saturated
 FLOAT_MINERALS = 250        # ... and a saturated economy floating this much takes another base
 LARVA_FLOAT = 600           # Zerg banking this much with no larva adds a hatchery
+GAS_FLOAT = 400             # this much gas, and more than minerals, is floating gas
 
 
 @register("GreedyPlanner")
@@ -89,6 +90,11 @@ class GreedyPlanner(Component):
                 and not w.under_attack:
             return now + 1
         return goal.bases
+
+    @staticmethod
+    def _gas_float(bb: Blackboard) -> bool:
+        """Gas piling up beyond minerals: spend it (gas-heavy units, tech) rather than stop mining it."""
+        return bb.world.gas >= GAS_FLOAT and bb.world.gas >= bb.world.minerals
 
     def _larva_starved(self, bb: Blackboard, hall: int) -> bool:
         """Zerg floating minerals with no larva and no hatchery on the way: another hatchery pays."""
@@ -213,7 +219,8 @@ class GreedyPlanner(Component):
                 if n > 0:
                     needs += [r for r in tree.unit_requires(t) if r != worker]
             me = bb.obs.me if bb.obs is not None else None
-            tech_now = not short and st.opening_done
+            gas_float = self._gas_float(bb)
+            tech_now = (not short or gas_float) and st.opening_done
             for u, lvl in goal.upgrades if tech_now else ():
                 cur = int(me.upgrade_level[u]) if me is not None and me.upgrade_level.size > u else 0
                 if lvl == cur + 1:              # only the next level's requirements
@@ -257,7 +264,7 @@ class GreedyPlanner(Component):
                 add("build", t, P_BUILDING if producer else P_TECH, "goal")
 
             # 8. upgrades / research
-            me = bb.obs.me if bb.obs is not None and not short else None
+            me = bb.obs.me if bb.obs is not None and (not short or gas_float) else None
             for u, lvl in goal.upgrades:
                 if me is None:
                     break
@@ -375,6 +382,7 @@ class GreedyPlanner(Component):
                 continue
             by_producer.setdefault(tree.builder(t), []).append(t)
         urgent = prio != P_ARMY
+        gas_float = self._gas_float(bb)
         counts: dict[int, int] = {}
         for producer, types in by_producer.items():
             slots = self.done(bb, producer) - held.get(producer, 0)
@@ -384,6 +392,8 @@ class GreedyPlanner(Component):
             for _ in range(slots):
                 open_ = [t for t in types if deficits[t] > 0]
                 open_.sort(key=lambda x: (self.have(bb, x) + counts.get(x, 0)) / max(1, goal.units[x]))
+                if gas_float:                   # banked gas: the gas-heavy part of the mix first
+                    open_.sort(key=lambda x: -tree.cost(x)[1])
                 pick = None
                 for t in open_ if urgent else open_[:1]:
                     m, g = tree.cost(t)

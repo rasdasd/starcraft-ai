@@ -9,7 +9,7 @@
   "attack_supply": 40,
   "retreat_supply": 14,
   "goal": {
-    "workers": "min(50, workers_for())",
+    "workers": "workers_for(cap=65)",
     "bases": "2 if count('Dragoon') >= 6 else 1",
     "buildings": {
       "Gateway": "3 if bases < 2 else 6",

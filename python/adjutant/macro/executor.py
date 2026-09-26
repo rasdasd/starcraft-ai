@@ -75,11 +75,11 @@ class Macro(Component):
     priority = Priority.CONSTRUCTION
     order = 0
 
-    def __init__(self, max_jobs: int = 3, early_dispatch: bool = True, gas_bank: tuple[int, int] = (300, 600),
+    def __init__(self, max_jobs: int = 3, early_dispatch: bool = True, gas_bank: Optional[tuple[int, int]] = None,
                  site_timeout_s: float = 15, draw: bool = True) -> None:
         self.max_jobs = max_jobs              # building jobs walking at once
         self.early_dispatch = early_dispatch
-        self.gas_bank = tuple(gas_bank)
+        self.gas_bank = tuple(gas_bank) if gas_bank else None   # (resume, pull) gas levels; None: always mine gas
         self.site_timeout = int(site_timeout_s * 24)
         self.draw = draw
 

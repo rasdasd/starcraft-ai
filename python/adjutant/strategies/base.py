@@ -62,11 +62,17 @@ HALL = {int(Race.Terran): int(U.Terran_Command_Center), int(Race.Zerg): int(U.Ze
         int(Race.Protoss): int(U.Protoss_Nexus)}
 
 
-def workers_for(bb: Blackboard, per_base: int = 16, cap: int = 60, per_gas: int = 3) -> int:
-    """Mineral saturation per base plus `per_gas` per refinery (of our race). A hall under
-    construction counts, so its workers are ready when it finishes."""
-    hall = HALL.get(int(bb.game.self_race), int(U.Terran_Command_Center))
-    bases = max(1, len(bb.world.depots) + min(1, count(bb, hall) - done(bb, hall)))
+def workers_for(bb: Blackboard, per_base: int = 16, cap: int = 60, per_gas: int = 3, ahead: int = 1) -> int:
+    """Mineral saturation for our finished mining bases plus `ahead` more (the next expansion, or
+    the one under construction), plus `per_gas` per refinery (of our race): workers are ready when
+    a hall finishes instead of being made for it afterwards."""
+    mb = bb.macro.bases
+    if mb:
+        bases = sum(1 for b in mb if b.completed and b.patches > 0)
+    else:
+        hall = HALL.get(int(bb.game.self_race), int(U.Terran_Command_Center))
+        bases = done(bb, hall)
+    bases = max(1, bases) + ahead
     ref = REFINERY.get(int(bb.game.self_race), int(U.Terran_Refinery))
     return min(cap, per_base * bases + per_gas * max(1, count(bb, ref)))
 

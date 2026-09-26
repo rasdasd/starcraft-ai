@@ -9,7 +9,7 @@
   "attack_supply": 70,
   "retreat_supply": 30,
   "goal": {
-    "workers": "min(60, workers_for())",
+    "workers": "workers_for(cap=70)",
     "bases": "2 if count('SCV') < 40 else 3",
     "buildings": {
       "Barracks": 1,

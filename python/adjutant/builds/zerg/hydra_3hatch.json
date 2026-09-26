@@ -9,7 +9,7 @@
   "attack_supply": 50,
   "retreat_supply": 18,
   "goal": {
-    "workers": "min(60, workers_for(per_base=14))",
+    "workers": "workers_for(per_base=14, cap=75)",
     "bases": "3 if minute >= 5 else 2",
     "buildings": {
       "Spawning_Pool": 1,

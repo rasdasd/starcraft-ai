@@ -252,11 +252,23 @@ def test_builder_taken_by_a_worker_pull_is_replaced():
 
 
 # ---------------------------------------------------------------------------- workers
-def test_gas_workers_go_back_to_minerals_while_gas_is_over_banked():
+def test_gas_is_mined_even_when_banked_by_default():
     g, w = _world(workers=10)
     sx, sy = g.self_player.start_location
     w.add(U.Terran_Refinery, sx * 32 + 256, sy * 32)
     bot = _bot(g, w)
+    sim, m = Sim(w), _comp(bot, "macro")
+    w.gas, w.minerals = 2000, 0
+    for _ in range(3):
+        _tick(bot, w, sim, skip=1)
+    assert len(m.pool.gas) == 3
+
+
+def test_gas_workers_go_back_to_minerals_while_gas_is_over_banked():
+    g, w = _world(workers=10)
+    sx, sy = g.self_player.start_location
+    w.add(U.Terran_Refinery, sx * 32 + 256, sy * 32)
+    bot = _bot(g, w, gas_bank=(300, 600))
     sim, m = Sim(w), _comp(bot, "macro")
 
     def step():

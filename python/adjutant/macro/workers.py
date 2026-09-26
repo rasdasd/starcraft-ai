@@ -3,7 +3,8 @@
 Workers mine only at our completed bases (no long-distance mining). Each base is filled to two per
 patch, the least saturated first, and up to three per patch once every base is full; when a base is
 over two per patch while another is under, a few workers move per decision. Gas takes three per
-completed refinery at our bases, none while gas is banked far beyond minerals. Workers another
+completed refinery at our bases (optionally none while gas is banked far beyond minerals, see
+`gas_bank`; by default gas is always mined and the planner spends it). Workers another
 component leases (builders, scouts, repairers, worker pulls) are not the pool's; gather commands go
 out only for new assignments and idle workers.
 """
@@ -28,7 +29,7 @@ REFINERY_PX = 12 * 32
 
 
 class WorkerPool:
-    def __init__(self, gas_bank: tuple[int, int] = (300, 600)) -> None:
+    def __init__(self, gas_bank: Optional[tuple[int, int]] = None) -> None:
         self.gas_bank = gas_bank
         self.gas_per = GAS_PER_REFINERY
         self.gas: dict[int, int] = {}          # worker id -> refinery id
@@ -42,7 +43,9 @@ class WorkerPool:
 
     def gas_target(self, minerals: int, gas: int) -> int:
         """Workers per refinery: none while gas is banked far beyond minerals, back to full once it has
-        been spent down (hysteresis between the two `gas_bank` levels)."""
+        been spent down (hysteresis between the two `gas_bank` levels). Without `gas_bank`, always full."""
+        if self.gas_bank is None:
+            return GAS_PER_REFINERY
         low, high = self.gas_bank
         if gas >= high and gas > 2 * minerals:
             self.gas_per = 0
